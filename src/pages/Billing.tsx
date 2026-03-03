@@ -96,7 +96,13 @@ export default function Billing() {
     });
 
     if (error) {
-      toast({ title: "Checkout failed", description: error.message, variant: "destructive" });
+      let description = error.message;
+      const errorWithContext = error as { context?: { json?: () => Promise<{ error?: string }> } };
+      if (errorWithContext.context?.json) {
+        const payload = await errorWithContext.context.json().catch(() => null);
+        if (payload?.error) description = payload.error;
+      }
+      toast({ title: "Checkout failed", description, variant: "destructive" });
       setCheckoutLoading(null);
       return;
     }

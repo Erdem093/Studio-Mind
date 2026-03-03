@@ -61,49 +61,67 @@ Deno.serve(async (req) => {
     return jsonResponse(400, { error: "Unsupported price ID" });
   }
 
-  const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
-    .select("stripe_customer_id")
-    .eq("user_id", user.id)
-    .single();
+  try {
+    // Ensure a profile row exists so billing fields can be persisted reliably.
+    const { error: profileUpsertError } = await adminClient.from("profiles").upsert(
+      {
+        user_id: user.id,
+        name: user.email ?? "Creator",
+      },
+      { onConflict: "user_id" },
+    );
 
-  if (profileError) {
-    return jsonResponse(500, { error: profileError.message });
-  }
+    if (profileUpsertError) {
+      return jsonResponse(500, { error: profileUpsertError.message });
+    }
 
-  let customerId = profile?.stripe_customer_id || null;
+    const { data: profile, error: profileError } = await adminClient
+      .from("profiles")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single();
 
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: { user_id: user.id },
+    if (profileError) {
+      return jsonResponse(500, { error: profileError.message });
+    }
+
+    let customerId = profile?.stripe_customer_id || null;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        metadata: { user_id: user.id },
+      });
+
+      customerId = customer.id;
+
+      const { error: updateCustomerError } = await adminClient
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("user_id", user.id);
+
+      if (updateCustomerError) {
+        return jsonResponse(500, { error: updateCustomerError.message });
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: user.id,
+      metadata: { user_id: user.id, price_id: priceId },
     });
 
-    customerId = customer.id;
-
-    const { error: updateCustomerError } = await adminClient
-      .from("profiles")
-      .update({ stripe_customer_id: customerId })
-      .eq("user_id", user.id);
-
-    if (updateCustomerError) {
-      return jsonResponse(500, { error: updateCustomerError.message });
+    if (!session.url) {
+      return jsonResponse(500, { error: "Stripe did not return a checkout URL" });
     }
+
+    return jsonResponse(200, { url: session.url });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Checkout session creation failed";
+    return jsonResponse(500, { error: message });
   }
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    client_reference_id: user.id,
-    metadata: { user_id: user.id, price_id: priceId },
-  });
-
-  if (!session.url) {
-    return jsonResponse(500, { error: "Stripe did not return a checkout URL" });
-  }
-
-  return jsonResponse(200, { url: session.url });
 });
