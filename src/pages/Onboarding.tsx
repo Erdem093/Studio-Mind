@@ -32,7 +32,7 @@ export default function Onboarding() {
   const [hookStyle, setHookStyle] = useState("curiosity_with_value");
   const [scriptLengthPreference, setScriptLengthPreference] = useState("short_form");
   const [autoSelectStyles, setAutoSelectStyles] = useState(true);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [inspirationAdvancedOpen, setInspirationAdvancedOpen] = useState(false);
   const [bannedPhrasesInput, setBannedPhrasesInput] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [inspirations, setInspirations] = useState<InspirationInput[]>([{ youtubeUrl: "", note: "" }]);
@@ -131,8 +131,6 @@ export default function Onboarding() {
                 checked={autoSelectStyles}
                 onCheckedChange={(checked) => {
                   setAutoSelectStyles(checked);
-                  if (!checked) setAdvancedOpen(true);
-                  if (checked) setAdvancedOpen(false);
                 }}
               />
             </div>
@@ -149,7 +147,7 @@ export default function Onboarding() {
                     onChange={(event) => updateInspiration(index, "youtubeUrl", event.target.value)}
                     placeholder="https://www.youtube.com/@creator"
                   />
-                  {advancedOpen && (
+                  {inspirationAdvancedOpen && (
                     <Input
                       value={item.note}
                       onChange={(event) => updateInspiration(index, "note", event.target.value)}
@@ -166,12 +164,12 @@ export default function Onboarding() {
             </div>
 
             <div className="space-y-2">
-              <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
-                {advancedOpen ? "Hide Advanced Options" : "Advanced Options"}
+              <Button variant="outline" onClick={() => setInspirationAdvancedOpen((prev) => !prev)}>
+                {inspirationAdvancedOpen ? "Hide Advanced Options" : "Advanced Options"}
               </Button>
             </div>
 
-            {advancedOpen && (
+            {!autoSelectStyles && (
               <div className="space-y-4 rounded-md border p-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
