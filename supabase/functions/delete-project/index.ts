@@ -53,51 +53,88 @@ Deno.serve(async (req) => {
     return jsonResponse(404, { error: "Project not found" });
   }
 
-  const { data: runRows, error: runReadError } = await adminClient
-    .from("runs")
-    .select("id")
-    .eq("video_id", videoId)
-    .eq("user_id", user.id);
-
-  if (runReadError) {
-    return jsonResponse(500, { error: runReadError.message });
-  }
-
-  const runIds = (runRows || []).map((row) => row.id);
-
-  if (runIds.length > 0) {
-    const { error: artifactDeleteError } = await adminClient
-      .from("artifacts")
-      .delete()
-      .in("run_id", runIds)
+  try {
+    const { data: runRows, error: runReadError } = await adminClient
+      .from("runs")
+      .select("id")
+      .eq("video_id", videoId)
       .eq("user_id", user.id);
 
-    if (artifactDeleteError) {
-      return jsonResponse(500, { error: artifactDeleteError.message });
+    if (runReadError) {
+      return jsonResponse(500, { error: `Failed to load runs: ${runReadError.message}` });
     }
-  }
 
-  const cleanupDeletes = await Promise.all([
-    adminClient.from("run_feedback").delete().eq("video_id", videoId).eq("user_id", user.id),
-    adminClient.from("analysis_jobs").delete().eq("video_id", videoId).eq("user_id", user.id),
-    adminClient.from("external_insights").delete().eq("video_id", videoId).eq("user_id", user.id),
-    adminClient.from("agent_memory").delete().eq("video_id", videoId).eq("user_id", user.id),
-    adminClient.from("runs").delete().eq("video_id", videoId).eq("user_id", user.id),
-  ]);
+    const runIds = (runRows || []).map((row) => row.id);
 
-  const cleanupError = cleanupDeletes.find((result) => result.error)?.error;
-  if (cleanupError) {
-    return jsonResponse(500, { error: cleanupError.message });
-  }
+    if (runIds.length > 0) {
+      const { error: artifactDeleteError } = await adminClient
+        .from("artifacts")
+        .delete()
+        .in("run_id", runIds)
+        .eq("user_id", user.id);
 
-  const { error: videoDeleteError } = await adminClient
-    .from("videos")
-    .delete()
-    .eq("id", videoId)
-    .eq("user_id", user.id);
+      if (artifactDeleteError) {
+        return jsonResponse(500, { error: `Failed to delete artifacts: ${artifactDeleteError.message}` });
+      }
+    }
 
-  if (videoDeleteError) {
-    return jsonResponse(500, { error: videoDeleteError.message });
+    const { error: feedbackDeleteError } = await adminClient
+      .from("run_feedback")
+      .delete()
+      .eq("video_id", videoId)
+      .eq("user_id", user.id);
+    if (feedbackDeleteError) {
+      return jsonResponse(500, { error: `Failed to delete feedback: ${feedbackDeleteError.message}` });
+    }
+
+    const { error: jobsDeleteError } = await adminClient
+      .from("analysis_jobs")
+      .delete()
+      .eq("video_id", videoId)
+      .eq("user_id", user.id);
+    if (jobsDeleteError) {
+      return jsonResponse(500, { error: `Failed to delete analysis jobs: ${jobsDeleteError.message}` });
+    }
+
+    const { error: insightsDeleteError } = await adminClient
+      .from("external_insights")
+      .delete()
+      .eq("video_id", videoId)
+      .eq("user_id", user.id);
+    if (insightsDeleteError) {
+      return jsonResponse(500, { error: `Failed to delete external insights: ${insightsDeleteError.message}` });
+    }
+
+    const { error: memoryDeleteError } = await adminClient
+      .from("agent_memory")
+      .delete()
+      .eq("video_id", videoId)
+      .eq("user_id", user.id);
+    if (memoryDeleteError) {
+      return jsonResponse(500, { error: `Failed to delete video memory: ${memoryDeleteError.message}` });
+    }
+
+    const { error: runsDeleteError } = await adminClient
+      .from("runs")
+      .delete()
+      .eq("video_id", videoId)
+      .eq("user_id", user.id);
+    if (runsDeleteError) {
+      return jsonResponse(500, { error: `Failed to delete runs: ${runsDeleteError.message}` });
+    }
+
+    const { error: videoDeleteError } = await adminClient
+      .from("videos")
+      .delete()
+      .eq("id", videoId)
+      .eq("user_id", user.id);
+
+    if (videoDeleteError) {
+      return jsonResponse(500, { error: `Failed to delete video: ${videoDeleteError.message}` });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected delete-project error";
+    return jsonResponse(500, { error: message });
   }
 
   return jsonResponse(200, { success: true, videoId });
