@@ -132,6 +132,7 @@ export default function Onboarding() {
                 onCheckedChange={(checked) => {
                   setAutoSelectStyles(checked);
                   if (!checked) setAdvancedOpen(true);
+                  if (checked) setAdvancedOpen(false);
                 }}
               />
             </div>

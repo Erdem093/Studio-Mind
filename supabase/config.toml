@@ -27,6 +27,9 @@ verify_jwt = false
 [functions.suggest-video-copy]
 verify_jwt = false
 
+[functions.analyze-approved-artifact]
+verify_jwt = false
+
 [functions.openclaw-pull-jobs]
 verify_jwt = false
 

@@ -112,6 +112,7 @@ Deployed/used functions:
 - `delete-project`
 - `complete-onboarding`
 - `suggest-video-copy`
+- `analyze-approved-artifact`
 - `queue-youtube-analysis`
 - `openclaw-pull-jobs`
 - `openclaw-push-insights`
@@ -128,6 +129,7 @@ supabase functions deploy create-connect-checkout-session
 supabase functions deploy delete-project
 supabase functions deploy complete-onboarding
 supabase functions deploy suggest-video-copy
+supabase functions deploy analyze-approved-artifact
 supabase functions deploy queue-youtube-analysis
 supabase functions deploy openclaw-pull-jobs
 supabase functions deploy openclaw-push-insights

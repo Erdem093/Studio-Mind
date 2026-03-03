@@ -60,8 +60,9 @@ export default function RunDetail() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string>("run");
-  const [appliesGlobally, setAppliesGlobally] = useState(true);
+  const [limitToVideo, setLimitToVideo] = useState(false);
   const [rejectingArtifactId, setRejectingArtifactId] = useState<string | null>(null);
+  const [advancedFeedbackOpen, setAdvancedFeedbackOpen] = useState(false);
 
   const fetchData = async () => {
     if (!runId) return;
@@ -106,7 +107,7 @@ export default function RunDetail() {
         artifactId,
         reasonCode: feedbackReason,
         freeText: feedbackText.trim() || undefined,
-        appliesGlobally: appliesGlobally || !artifactId,
+        appliesGlobally: !limitToVideo,
       },
     });
 
@@ -139,7 +140,8 @@ export default function RunDetail() {
     setFeedbackText("");
     setFeedbackReason("not_engaging");
     setSelectedArtifactId("run");
-    setAppliesGlobally(true);
+    setLimitToVideo(false);
+    setAdvancedFeedbackOpen(false);
     setRejectingArtifactId(null);
     setFeedbackDialogOpen(false);
     setFeedbackSubmitting(false);
@@ -148,9 +150,27 @@ export default function RunDetail() {
 
   const openFeedbackDialog = (artifactId?: string, forReject = false) => {
     setSelectedArtifactId(artifactId ?? "run");
-    setAppliesGlobally(!artifactId);
+    setLimitToVideo(false);
+    setAdvancedFeedbackOpen(false);
     setRejectingArtifactId(forReject && artifactId ? artifactId : null);
     setFeedbackDialogOpen(true);
+  };
+
+  const autoAnalyzeApprovedArtifact = async (artifactId: string) => {
+    const { data, error } = await supabase.functions.invoke("analyze-approved-artifact", {
+      body: { artifactId },
+    });
+
+    if (error || (data as { error?: string } | null)?.error) {
+      toast({
+        title: "Auto-learning failed",
+        description: error?.message || (data as { error?: string } | null)?.error || "Approved artifact analysis failed",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({ title: "Memory improved", description: "Approved artifact patterns were added to channel memory." });
   };
 
   const statusBadge = (status: string) => {
@@ -200,9 +220,6 @@ export default function RunDetail() {
               {run.cost_usd && <span>${Number(run.cost_usd).toFixed(4)}</span>}
             </div>
           </div>
-          <Button variant="outline" onClick={() => openFeedbackDialog()}>
-            <MessageSquareWarning className="mr-2 h-4 w-4" />Why I didn't like this
-          </Button>
         </div>
 
         {Object.entries(grouped).map(([type, arts]) => (
@@ -228,7 +245,10 @@ export default function RunDetail() {
                             size="sm"
                             variant="outline"
                             className="text-success border-success hover:bg-success/10"
-                            onClick={() => updateApproval(art.id, "approved")}
+                            onClick={async () => {
+                              await updateApproval(art.id, "approved");
+                              await autoAnalyzeApprovedArtifact(art.id);
+                            }}
                           >
                             <Check className="mr-1 h-3 w-3" />Approve
                           </Button>
@@ -241,6 +261,12 @@ export default function RunDetail() {
                             <X className="mr-1 h-3 w-3" />Reject
                           </Button>
                         </div>
+                      )}
+                      {art.approval_status === "approved" && (
+                        <Button size="sm" variant="outline" onClick={() => openFeedbackDialog(art.id)}>
+                          <MessageSquareWarning className="mr-2 h-3.5 w-3.5" />
+                          Add feedback (optional)
+                        </Button>
                       )}
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{art.content || "No content"}</p>
@@ -266,6 +292,8 @@ export default function RunDetail() {
           setFeedbackDialogOpen(open);
           if (!open) {
             setRejectingArtifactId(null);
+            setLimitToVideo(false);
+            setAdvancedFeedbackOpen(false);
           }
         }}
       >
@@ -287,7 +315,6 @@ export default function RunDetail() {
                     value={selectedArtifactId}
                     onValueChange={(value) => {
                       setSelectedArtifactId(value);
-                      if (value === "run") setAppliesGlobally(true);
                     }}
                   >
                     <SelectTrigger>
@@ -328,19 +355,16 @@ export default function RunDetail() {
                 onChange={(event) => setFeedbackText(event.target.value)}
               />
             </div>
-            {!rejectingArtifactId && (
+            <Button variant="outline" onClick={() => setAdvancedFeedbackOpen((prev) => !prev)}>
+              {advancedFeedbackOpen ? "Hide Advanced Settings" : "Advanced Settings"}
+            </Button>
+            {advancedFeedbackOpen && (
               <div className="flex items-center justify-between rounded-md border p-3">
                 <div>
-                  <p className="text-sm font-medium">Apply globally across future runs</p>
-                  <p className="text-xs text-muted-foreground">When off, memory is targeted to the selected artifact agent.</p>
+                  <p className="text-sm font-medium">Only keep memory for this specific video</p>
+                  <p className="text-xs text-muted-foreground">Default is global so your whole channel improves over time.</p>
                 </div>
-                <Switch
-                  checked={appliesGlobally}
-                  onCheckedChange={(checked) => {
-                    setAppliesGlobally(checked);
-                    if (checked) setSelectedArtifactId("run");
-                  }}
-                />
+                <Switch checked={limitToVideo} onCheckedChange={setLimitToVideo} />
               </div>
             )}
             <Button onClick={submitFeedback} disabled={feedbackSubmitting} className="w-full">

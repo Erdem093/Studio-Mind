@@ -16,6 +16,7 @@ interface AgentMetric {
   cost_usd: number;
   status: "completed" | "failed";
   error_message: string | null;
+  prompt_text?: string;
 }
 
 interface RunRow {
@@ -191,6 +192,12 @@ export default function Observability() {
                                 ${metric.cost_usd.toFixed(4)}
                               </p>
                               {metric.error_message && <p className="text-destructive mt-1">{metric.error_message}</p>}
+                              {metric.prompt_text && (
+                                <details className="mt-2">
+                                  <summary className="cursor-pointer text-muted-foreground">Prompt</summary>
+                                  <pre className="mt-1 whitespace-pre-wrap rounded border bg-muted/30 p-2 text-[11px] leading-4">{metric.prompt_text}</pre>
+                                </details>
+                              )}
                             </div>
                           ))}
                         </div>

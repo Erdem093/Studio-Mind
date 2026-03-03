@@ -31,6 +31,7 @@ type AgentOutput = {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  promptText: string;
 };
 
 type AgentExecutionMetrics = {
@@ -43,6 +44,7 @@ type AgentExecutionMetrics = {
   cost_usd: number;
   status: "completed" | "failed";
   error_message: string | null;
+  prompt_text: string;
 };
 
 type SpanAttr = { key: string; value: Record<string, unknown> };
@@ -555,6 +557,7 @@ async function callAgent(
     promptTokens: Number(json?.usage?.prompt_tokens ?? 0),
     completionTokens: Number(json?.usage?.completion_tokens ?? 0),
     totalTokens: Number(json?.usage?.total_tokens ?? 0),
+    promptText: userPrompt,
   };
 }
 
@@ -783,6 +786,7 @@ Deno.serve(async (req) => {
           cost_usd: costUsd,
           status: "completed",
           error_message: null,
+          prompt_text: result.promptText,
         };
         metrics.push(metric);
 
@@ -819,6 +823,7 @@ Deno.serve(async (req) => {
           cost_usd: 0,
           status: "failed",
           error_message: message,
+          prompt_text: context.channelBaselineText,
         };
         metrics.push(metric);
 
