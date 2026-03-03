@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,6 @@ const LENGTH_OPTIONS = ["short_form", "mid_form", "long_form"];
 interface InspirationItem {
   id?: string;
   youtube_url: string;
-  label: string;
   note: string;
 }
 
@@ -40,11 +40,14 @@ interface FeedbackItem {
 }
 
 export default function Preferences() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, refreshProfile } = useAuth();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const [channelStyleGoal, setChannelStyleGoal] = useState("");
   const [channelSummaryPrompt, setChannelSummaryPrompt] = useState("");
@@ -82,7 +85,7 @@ export default function Preferences() {
         .maybeSingle(),
       supabase
         .from("channel_inspirations")
-        .select("id, youtube_url, label, note")
+        .select("id, youtube_url, note")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
@@ -127,7 +130,6 @@ export default function Preferences() {
     setInspirations((inspirationResult.data || []).map((item) => ({
       id: item.id,
       youtube_url: item.youtube_url,
-      label: item.label || "",
       note: item.note || "",
     })));
     setModLog((modResult.data || []) as LogItem[]);
@@ -145,7 +147,7 @@ export default function Preferences() {
   };
 
   const addInspiration = () => {
-    setInspirations((prev) => [...prev, { youtube_url: "", label: "", note: "" }]);
+    setInspirations((prev) => [...prev, { youtube_url: "", note: "" }]);
   };
 
   const removeInspiration = (index: number) => {
@@ -217,8 +219,8 @@ export default function Preferences() {
       .map((item) => ({
         user_id: user.id,
         youtube_url: item.youtube_url.trim(),
-        label: item.label.trim() || null,
         note: item.note.trim() || null,
+        label: null,
       }))
       .filter((item) => item.youtube_url);
 
@@ -249,6 +251,41 @@ export default function Preferences() {
     fetchData();
   };
 
+  const resetOnboarding = async () => {
+    if (!user) return;
+    setResetting(true);
+
+    const now = new Date().toISOString();
+
+    const [profileUpdate, prefDelete, inspirationDelete] = await Promise.all([
+      supabase
+        .from("profiles")
+        .update({
+          onboarding_completed_at: null,
+          channel_style_goal: null,
+          channel_summary_prompt: null,
+          updated_at: now,
+        })
+        .eq("user_id", user.id),
+      supabase.from("channel_preferences").delete().eq("user_id", user.id),
+      supabase.from("channel_inspirations").delete().eq("user_id", user.id),
+    ]);
+
+    if (profileUpdate.error || prefDelete.error || inspirationDelete.error) {
+      toast({
+        title: "Reset failed",
+        description: profileUpdate.error?.message || prefDelete.error?.message || inspirationDelete.error?.message || "Unknown error",
+        variant: "destructive",
+      });
+      setResetting(false);
+      return;
+    }
+
+    await refreshProfile();
+    toast({ title: "Onboarding reset", description: "You can now go through onboarding again." });
+    navigate("/onboarding");
+  };
+
   const mappedFeedback = feedbackLog.map((item) => ({
     id: `feedback-${item.id}`,
     source: "feedback",
@@ -264,9 +301,14 @@ export default function Preferences() {
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-display font-bold">Preferences</h1>
-          <p className="text-muted-foreground mt-1">Define your channel baseline used by all projects and agents.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-display font-bold">Preferences</h1>
+            <p className="text-muted-foreground mt-1">Define your channel baseline used by all projects and agents.</p>
+          </div>
+          <Button variant="outline" onClick={resetOnboarding} disabled={resetting}>
+            {resetting ? "Resetting..." : "Run Onboarding Again"}
+          </Button>
         </div>
 
         {loading ? (
@@ -287,63 +329,69 @@ export default function Preferences() {
                   <Label>Master channel summary prompt</Label>
                   <Textarea value={channelSummaryPrompt} onChange={(event) => setChannelSummaryPrompt(event.target.value)} className="min-h-[200px]" />
                 </div>
+                <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
+                  {advancedOpen ? "Hide Advanced Settings" : "Advanced Settings"}
+                </Button>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display">Style Controls</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tone</Label>
-                  <Select value={tone} onValueChange={setTone}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TONE_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Pacing</Label>
-                  <Select value={pacing} onValueChange={setPacing}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PACING_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Hook style</Label>
-                  <Select value={hookStyle} onValueChange={setHookStyle}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{HOOK_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Script length preference</Label>
-                  <Select value={scriptLengthPreference} onValueChange={setScriptLengthPreference}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LENGTH_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>CTA style</Label>
-                  <Input value={ctaStyle} onChange={(event) => setCtaStyle(event.target.value)} placeholder="Example: end with a challenge question" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Banned phrases (comma separated)</Label>
-                  <Input value={bannedPhrasesInput} onChange={(event) => setBannedPhrasesInput(event.target.value)} placeholder="guaranteed viral, smash that like" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Notes</Label>
-                  <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Additional style rules..." />
-                </div>
-              </CardContent>
-            </Card>
+            {advancedOpen && (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-display">Style Controls</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Tone</Label>
+                      <Select value={tone} onValueChange={setTone}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{TONE_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Pacing</Label>
+                      <Select value={pacing} onValueChange={setPacing}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{PACING_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hook style</Label>
+                      <Select value={hookStyle} onValueChange={setHookStyle}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{HOOK_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Script length preference</Label>
+                      <Select value={scriptLengthPreference} onValueChange={setScriptLengthPreference}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LENGTH_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent></Select>
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>CTA style</Label>
+                      <Input value={ctaStyle} onChange={(event) => setCtaStyle(event.target.value)} placeholder="Example: end with a challenge question" />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Banned phrases (comma separated)</Label>
+                      <Input value={bannedPhrasesInput} onChange={(event) => setBannedPhrasesInput(event.target.value)} placeholder="guaranteed viral, smash that like" />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Notes</Label>
+                      <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Additional style rules..." />
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="font-display">YouTube Inspirations</CardTitle>
-                <CardDescription>Links and notes to anchor output style.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" size="sm" onClick={addInspiration}>Add inspiration</Button>
-                {inspirations.length === 0 && <p className="text-sm text-muted-foreground">No inspirations yet.</p>}
-                {inspirations.map((item, index) => (
-                  <div key={item.id || index} className="rounded-md border p-3 space-y-2">
-                    <Input value={item.youtube_url} onChange={(event) => updateInspiration(index, "youtube_url", event.target.value)} placeholder="https://www.youtube.com/@creator" />
-                    <Input value={item.label} onChange={(event) => updateInspiration(index, "label", event.target.value)} placeholder="Label (optional)" />
-                    <Input value={item.note} onChange={(event) => updateInspiration(index, "note", event.target.value)} placeholder="What to emulate" />
-                    <Button variant="ghost" size="sm" onClick={() => removeInspiration(index)}>Remove</Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="font-display">YouTube Inspirations</CardTitle>
+                    <CardDescription>Channel links and what to emulate from each one.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Button variant="outline" size="sm" onClick={addInspiration}>Add inspiration</Button>
+                    {inspirations.length === 0 && <p className="text-sm text-muted-foreground">No inspirations yet.</p>}
+                    {inspirations.map((item, index) => (
+                      <div key={item.id || index} className="rounded-md border p-3 space-y-2">
+                        <Input value={item.youtube_url} onChange={(event) => updateInspiration(index, "youtube_url", event.target.value)} placeholder="https://www.youtube.com/@creator" />
+                        <Input value={item.note} onChange={(event) => updateInspiration(index, "note", event.target.value)} placeholder="What to emulate" />
+                        <Button variant="ghost" size="sm" onClick={() => removeInspiration(index)}>Remove</Button>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
             <div className="flex justify-end">
               <Button onClick={savePreferences} disabled={saving}>{saving ? "Saving..." : "Save Preferences"}</Button>

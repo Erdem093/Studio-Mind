@@ -61,6 +61,7 @@ export default function RunDetail() {
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string>("run");
   const [appliesGlobally, setAppliesGlobally] = useState(true);
+  const [rejectingArtifactId, setRejectingArtifactId] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!runId) return;
@@ -120,17 +121,35 @@ export default function RunDetail() {
     }
 
     toast({ title: "Feedback saved", description: "Future runs will use this memory." });
+
+    if (rejectingArtifactId) {
+      const { error: rejectError } = await supabase
+        .from("artifacts")
+        .update({
+          approval_status: "rejected",
+          approved_at: null,
+        })
+        .eq("id", rejectingArtifactId);
+
+      if (rejectError) {
+        toast({ title: "Reject failed", description: rejectError.message, variant: "destructive" });
+      }
+    }
+
     setFeedbackText("");
     setFeedbackReason("not_engaging");
     setSelectedArtifactId("run");
     setAppliesGlobally(true);
+    setRejectingArtifactId(null);
     setFeedbackDialogOpen(false);
     setFeedbackSubmitting(false);
+    await fetchData();
   };
 
-  const openFeedbackDialog = (artifactId?: string) => {
+  const openFeedbackDialog = (artifactId?: string, forReject = false) => {
     setSelectedArtifactId(artifactId ?? "run");
     setAppliesGlobally(!artifactId);
+    setRejectingArtifactId(forReject && artifactId ? artifactId : null);
     setFeedbackDialogOpen(true);
   };
 
@@ -217,7 +236,7 @@ export default function RunDetail() {
                             size="sm"
                             variant="outline"
                             className="text-destructive border-destructive hover:bg-destructive/10"
-                            onClick={() => updateApproval(art.id, "rejected")}
+                            onClick={() => openFeedbackDialog(art.id, true)}
                           >
                             <X className="mr-1 h-3 w-3" />Reject
                           </Button>
@@ -225,12 +244,6 @@ export default function RunDetail() {
                       )}
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{art.content || "No content"}</p>
-                    <div className="mt-4">
-                      <Button size="sm" variant="ghost" onClick={() => openFeedbackDialog(art.id)}>
-                        <MessageSquareWarning className="mr-2 h-3.5 w-3.5" />
-                        Give feedback for this artifact
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -247,33 +260,50 @@ export default function RunDetail() {
         )}
       </div>
 
-      <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
+      <Dialog
+        open={feedbackDialogOpen}
+        onOpenChange={(open) => {
+          setFeedbackDialogOpen(open);
+          if (!open) {
+            setRejectingArtifactId(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Why didn&apos;t this run work for you?</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
-              <Label>Feedback target</Label>
-              <Select
-                value={selectedArtifactId}
-                onValueChange={(value) => {
-                  setSelectedArtifactId(value);
-                  if (value === "run") setAppliesGlobally(true);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose target" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="run">Entire run (global preference)</SelectItem>
-                  {artifacts.map((artifact) => (
-                    <SelectItem key={artifact.id} value={artifact.id}>
-                      {(TYPE_LABELS[artifact.type] || artifact.type) + (artifact.agent_name ? ` - ${artifact.agent_name}` : "")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {rejectingArtifactId ? (
+                <>
+                  <Label>Feedback target</Label>
+                  <p className="text-sm text-muted-foreground">This rejection feedback will be attached to the selected artifact.</p>
+                </>
+              ) : (
+                <>
+                  <Label>Feedback target</Label>
+                  <Select
+                    value={selectedArtifactId}
+                    onValueChange={(value) => {
+                      setSelectedArtifactId(value);
+                      if (value === "run") setAppliesGlobally(true);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose target" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="run">Entire run (global preference)</SelectItem>
+                      {artifacts.map((artifact) => (
+                        <SelectItem key={artifact.id} value={artifact.id}>
+                          {(TYPE_LABELS[artifact.type] || artifact.type) + (artifact.agent_name ? ` - ${artifact.agent_name}` : "")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Feedback reason</Label>
@@ -298,21 +328,23 @@ export default function RunDetail() {
                 onChange={(event) => setFeedbackText(event.target.value)}
               />
             </div>
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <p className="text-sm font-medium">Apply globally across future runs</p>
-                <p className="text-xs text-muted-foreground">When off, memory is targeted to the selected artifact agent.</p>
+            {!rejectingArtifactId && (
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div>
+                  <p className="text-sm font-medium">Apply globally across future runs</p>
+                  <p className="text-xs text-muted-foreground">When off, memory is targeted to the selected artifact agent.</p>
+                </div>
+                <Switch
+                  checked={appliesGlobally}
+                  onCheckedChange={(checked) => {
+                    setAppliesGlobally(checked);
+                    if (checked) setSelectedArtifactId("run");
+                  }}
+                />
               </div>
-              <Switch
-                checked={appliesGlobally}
-                onCheckedChange={(checked) => {
-                  setAppliesGlobally(checked);
-                  if (checked) setSelectedArtifactId("run");
-                }}
-              />
-            </div>
+            )}
             <Button onClick={submitFeedback} disabled={feedbackSubmitting} className="w-full">
-              {feedbackSubmitting ? "Saving..." : "Save Feedback"}
+              {feedbackSubmitting ? "Saving..." : rejectingArtifactId ? "Save Feedback and Reject" : "Save Feedback"}
             </Button>
           </div>
         </DialogContent>

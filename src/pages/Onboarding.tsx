@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 
 const TONE_OPTIONS = ["clear_confident", "educational", "playful", "authoritative"];
 const PACING_OPTIONS = ["fast", "balanced", "deep_dive"];
@@ -18,12 +19,11 @@ const LENGTH_OPTIONS = ["short_form", "mid_form", "long_form"];
 interface InspirationInput {
   youtubeUrl: string;
   note: string;
-  label: string;
 }
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { user, onboardingCompleted, refreshProfile } = useAuth();
+  const { onboardingCompleted, refreshProfile } = useAuth();
   const { toast } = useToast();
 
   const [goal, setGoal] = useState("");
@@ -31,14 +31,13 @@ export default function Onboarding() {
   const [pacing, setPacing] = useState("fast");
   const [hookStyle, setHookStyle] = useState("curiosity_with_value");
   const [scriptLengthPreference, setScriptLengthPreference] = useState("short_form");
+  const [autoSelectStyles, setAutoSelectStyles] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [bannedPhrasesInput, setBannedPhrasesInput] = useState("");
   const [additionalNotes, setAdditionalNotes] = useState("");
-  const [inspirations, setInspirations] = useState<InspirationInput[]>([{ youtubeUrl: "", note: "", label: "" }]);
+  const [inspirations, setInspirations] = useState<InspirationInput[]>([{ youtubeUrl: "", note: "" }]);
 
   const [submitting, setSubmitting] = useState(false);
-  const [generatedSummary, setGeneratedSummary] = useState<string | null>(null);
-  const [editableSummary, setEditableSummary] = useState("");
-  const [savingSummary, setSavingSummary] = useState(false);
 
   useEffect(() => {
     if (onboardingCompleted) {
@@ -56,7 +55,7 @@ export default function Onboarding() {
   };
 
   const addInspiration = () => {
-    setInspirations((prev) => [...prev, { youtubeUrl: "", note: "", label: "" }]);
+    setInspirations((prev) => [...prev, { youtubeUrl: "", note: "" }]);
   };
 
   const removeInspiration = (index: number) => {
@@ -65,7 +64,7 @@ export default function Onboarding() {
 
   const runOnboarding = async () => {
     if (!goal.trim()) {
-      toast({ title: "Goal required", description: "Add a channel goal to continue.", variant: "destructive" });
+      toast({ title: "Goal required", description: "Channel goal + niche is required.", variant: "destructive" });
       return;
     }
 
@@ -74,6 +73,7 @@ export default function Onboarding() {
     const { data, error } = await supabase.functions.invoke("complete-onboarding", {
       body: {
         goal: goal.trim(),
+        autoSelectStyles,
         tone,
         pacing,
         hookStyle,
@@ -83,7 +83,6 @@ export default function Onboarding() {
           .map((item) => ({
             youtubeUrl: item.youtubeUrl.trim(),
             note: item.note.trim(),
-            label: item.label.trim(),
           }))
           .filter((item) => item.youtubeUrl),
         additionalNotes: additionalNotes.trim(),
@@ -100,34 +99,8 @@ export default function Onboarding() {
       return;
     }
 
-    const summary = (data as { channelSummaryPrompt?: string }).channelSummaryPrompt || "";
-    setGeneratedSummary(summary);
-    setEditableSummary(summary);
-    setSubmitting(false);
-  };
-
-  const confirmSummary = async () => {
-    if (!user || !editableSummary.trim()) return;
-    setSavingSummary(true);
-
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        channel_summary_prompt: editableSummary.trim(),
-        onboarding_completed_at: now,
-        updated_at: now,
-      })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast({ title: "Save failed", description: error.message, variant: "destructive" });
-      setSavingSummary(false);
-      return;
-    }
-
     await refreshProfile();
-    toast({ title: "Onboarding complete", description: "Your channel style baseline is ready." });
+    toast({ title: "Onboarding complete", description: "Baseline created. You can refine it in Preferences." });
     navigate("/dashboard");
   };
 
@@ -137,11 +110,11 @@ export default function Onboarding() {
         <Card>
           <CardHeader>
             <CardTitle className="font-display">Channel Onboarding</CardTitle>
-            <CardDescription>Set your channel style so all future runs match your direction.</CardDescription>
+            <CardDescription>Set your channel direction. We will generate your initial style baseline automatically.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label>Channel goal + niche</Label>
+              <Label>Channel goal + niche (required)</Label>
               <Textarea
                 value={goal}
                 onChange={(event) => setGoal(event.target.value)}
@@ -149,49 +122,23 @@ export default function Onboarding() {
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Tone</Label>
-                <Select value={tone} onValueChange={setTone}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{TONE_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                </Select>
+            <div className="rounded-md border p-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Auto-select style controls from your goal</p>
+                <p className="text-xs text-muted-foreground">Recommended for fast setup.</p>
               </div>
-              <div className="space-y-2">
-                <Label>Pacing</Label>
-                <Select value={pacing} onValueChange={setPacing}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{PACING_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Hook style</Label>
-                <Select value={hookStyle} onValueChange={setHookStyle}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{HOOK_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Script length preference</Label>
-                <Select value={scriptLengthPreference} onValueChange={setScriptLengthPreference}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{LENGTH_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Banned phrases (comma separated)</Label>
-              <Input
-                value={bannedPhrasesInput}
-                onChange={(event) => setBannedPhrasesInput(event.target.value)}
-                placeholder="smash that like, guaranteed viral"
+              <Switch
+                checked={autoSelectStyles}
+                onCheckedChange={(checked) => {
+                  setAutoSelectStyles(checked);
+                  if (!checked) setAdvancedOpen(true);
+                }}
               />
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label>YouTube inspirations</Label>
+                <Label>YouTube inspirations (channel links)</Label>
                 <Button variant="outline" size="sm" onClick={addInspiration}>Add</Button>
               </div>
               {inspirations.map((item, index) => (
@@ -201,16 +148,13 @@ export default function Onboarding() {
                     onChange={(event) => updateInspiration(index, "youtubeUrl", event.target.value)}
                     placeholder="https://www.youtube.com/@creator"
                   />
-                  <Input
-                    value={item.label}
-                    onChange={(event) => updateInspiration(index, "label", event.target.value)}
-                    placeholder="Creator / channel label (optional)"
-                  />
-                  <Input
-                    value={item.note}
-                    onChange={(event) => updateInspiration(index, "note", event.target.value)}
-                    placeholder="What should we emulate?"
-                  />
+                  {advancedOpen && (
+                    <Input
+                      value={item.note}
+                      onChange={(event) => updateInspiration(index, "note", event.target.value)}
+                      placeholder="Advanced: what should we emulate from this channel"
+                    />
+                  )}
                   {inspirations.length > 1 && (
                     <Button variant="ghost" size="sm" onClick={() => removeInspiration(index)}>
                       Remove
@@ -221,23 +165,63 @@ export default function Onboarding() {
             </div>
 
             <div className="space-y-2">
-              <Label>Additional notes</Label>
-              <Textarea value={additionalNotes} onChange={(event) => setAdditionalNotes(event.target.value)} placeholder="Anything else your agents should know..." />
+              <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
+                {advancedOpen ? "Hide Advanced Options" : "Advanced Options"}
+              </Button>
             </div>
 
-            {!generatedSummary ? (
-              <Button onClick={runOnboarding} disabled={submitting} className="w-full">
-                {submitting ? "Generating style baseline..." : "Generate Channel Baseline"}
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                <Label>Review/edit generated channel summary prompt</Label>
-                <Textarea value={editableSummary} onChange={(event) => setEditableSummary(event.target.value)} className="min-h-[220px]" />
-                <Button onClick={confirmSummary} disabled={savingSummary} className="w-full">
-                  {savingSummary ? "Saving..." : "Confirm and Continue"}
-                </Button>
+            {advancedOpen && (
+              <div className="space-y-4 rounded-md border p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tone</Label>
+                    <Select value={tone} onValueChange={setTone}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{TONE_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Pacing</Label>
+                    <Select value={pacing} onValueChange={setPacing}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{PACING_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Hook style</Label>
+                    <Select value={hookStyle} onValueChange={setHookStyle}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{HOOK_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Script length preference</Label>
+                    <Select value={scriptLengthPreference} onValueChange={setScriptLengthPreference}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{LENGTH_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Banned phrases (comma separated)</Label>
+                  <Input
+                    value={bannedPhrasesInput}
+                    onChange={(event) => setBannedPhrasesInput(event.target.value)}
+                    placeholder="smash that like, guaranteed viral"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Additional notes</Label>
+                  <Textarea value={additionalNotes} onChange={(event) => setAdditionalNotes(event.target.value)} placeholder="Anything else your agents should know..." />
+                </div>
               </div>
             )}
+
+            <Button onClick={runOnboarding} disabled={submitting} className="w-full">
+              {submitting ? "Generating style baseline..." : "Finish Onboarding"}
+            </Button>
           </CardContent>
         </Card>
       </div>

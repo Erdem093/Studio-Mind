@@ -4,7 +4,6 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 type InspirationInput = {
   youtubeUrl: string;
   note?: string;
-  label?: string;
 };
 
 function isValidYoutubeUrl(url: string): boolean {
@@ -44,6 +43,7 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => null) as {
     goal?: string;
+    autoSelectStyles?: boolean;
     tone?: string;
     pacing?: string;
     hookStyle?: string;
@@ -54,10 +54,11 @@ Deno.serve(async (req) => {
   } | null;
 
   const goal = body?.goal?.trim() || "";
-  const tone = body?.tone?.trim() || "clear_confident";
-  const pacing = body?.pacing?.trim() || "fast";
-  const hookStyle = body?.hookStyle?.trim() || "curiosity_with_value";
-  const scriptLengthPreference = body?.scriptLengthPreference?.trim() || "short_form";
+  const autoSelectStyles = body?.autoSelectStyles !== false;
+  const manualTone = body?.tone?.trim() || "clear_confident";
+  const manualPacing = body?.pacing?.trim() || "fast";
+  const manualHookStyle = body?.hookStyle?.trim() || "curiosity_with_value";
+  const manualScriptLengthPreference = body?.scriptLengthPreference?.trim() || "short_form";
   const bannedPhrases = Array.isArray(body?.bannedPhrases)
     ? body!.bannedPhrases.map((item) => item.trim()).filter(Boolean).slice(0, 30)
     : [];
@@ -67,7 +68,6 @@ Deno.serve(async (req) => {
       .map((item) => ({
         youtubeUrl: item.youtubeUrl?.trim() || "",
         note: item.note?.trim() || "",
-        label: item.label?.trim() || "",
       }))
       .filter((item) => item.youtubeUrl)
     : [];
@@ -81,16 +81,23 @@ Deno.serve(async (req) => {
   }
 
   const prompt = [
-    "Create a concise channel master prompt for a multi-agent content pipeline.",
-    `Channel goal: ${goal}`,
-    `Preferred tone: ${tone}`,
-    `Preferred pacing: ${pacing}`,
-    `Preferred hook style: ${hookStyle}`,
-    `Script length preference: ${scriptLengthPreference}`,
+    "Create an onboarding strategy pack for a creator channel.",
+    `Channel goal + niche: ${goal}`,
+    `Auto select styles: ${autoSelectStyles ? "yes" : "no"}`,
+    `Manual tone: ${manualTone}`,
+    `Manual pacing: ${manualPacing}`,
+    `Manual hook style: ${manualHookStyle}`,
+    `Manual script length preference: ${manualScriptLengthPreference}`,
     `Banned phrases: ${bannedPhrases.length ? bannedPhrases.join(", ") : "none"}`,
     `Inspiration references: ${inspirations.length ? inspirations.map((item) => `${item.youtubeUrl}${item.note ? ` (${item.note})` : ""}`).join("; ") : "none"}`,
     `Additional notes: ${additionalNotes || "none"}`,
-    "Return JSON: {\"channel_summary_prompt\":\"...\"}. Keep under 220 words.",
+    "Return JSON exactly: {\"channel_summary_prompt\":\"...\",\"recommended_tone\":\"...\",\"recommended_pacing\":\"...\",\"recommended_hook_style\":\"...\",\"recommended_script_length_preference\":\"...\"}.",
+    "Use one of these values only for recommendations:",
+    "tone: clear_confident|educational|playful|authoritative",
+    "pacing: fast|balanced|deep_dive",
+    "hook_style: curiosity_with_value|bold_claim|question_led|story_first",
+    "script_length_preference: short_form|mid_form|long_form",
+    "Keep channel_summary_prompt under 220 words.",
   ].join("\n");
 
   const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -128,9 +135,25 @@ Deno.serve(async (req) => {
   }
 
   let channelSummaryPrompt = "";
+  let recommendedTone = "clear_confident";
+  let recommendedPacing = "fast";
+  let recommendedHookStyle = "curiosity_with_value";
+  let recommendedScriptLength = "short_form";
+
   try {
-    const parsed = JSON.parse(rawContent) as { channel_summary_prompt?: string };
+    const parsed = JSON.parse(rawContent) as {
+      channel_summary_prompt?: string;
+      recommended_tone?: string;
+      recommended_pacing?: string;
+      recommended_hook_style?: string;
+      recommended_script_length_preference?: string;
+    };
+
     channelSummaryPrompt = parsed.channel_summary_prompt?.trim() || "";
+    recommendedTone = parsed.recommended_tone?.trim() || recommendedTone;
+    recommendedPacing = parsed.recommended_pacing?.trim() || recommendedPacing;
+    recommendedHookStyle = parsed.recommended_hook_style?.trim() || recommendedHookStyle;
+    recommendedScriptLength = parsed.recommended_script_length_preference?.trim() || recommendedScriptLength;
   } catch {
     return jsonResponse(500, { error: "Failed to parse AI response JSON" });
   }
@@ -138,6 +161,11 @@ Deno.serve(async (req) => {
   if (!channelSummaryPrompt) {
     return jsonResponse(500, { error: "AI returned empty channel_summary_prompt" });
   }
+
+  const tone = autoSelectStyles ? recommendedTone : manualTone;
+  const pacing = autoSelectStyles ? recommendedPacing : manualPacing;
+  const hookStyle = autoSelectStyles ? recommendedHookStyle : manualHookStyle;
+  const scriptLengthPreference = autoSelectStyles ? recommendedScriptLength : manualScriptLengthPreference;
 
   const now = new Date().toISOString();
 
@@ -205,7 +233,7 @@ Deno.serve(async (req) => {
           user_id: user.id,
           youtube_url: item.youtubeUrl,
           note: item.note || null,
-          label: item.label || null,
+          label: null,
         })),
       );
 
@@ -217,6 +245,7 @@ Deno.serve(async (req) => {
     source: "onboarding",
     change_summary: "Completed onboarding and initialized channel preferences",
     metadata: {
+      auto_select_styles: autoSelectStyles,
       tone,
       pacing,
       hook_style: hookStyle,
