@@ -61,6 +61,11 @@ export type Database = {
           created_at: string
           id: string
           name: string | null
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          subscription_current_period_end: string | null
+          subscription_status: string | null
           updated_at: string
           user_id: string
         }
@@ -69,6 +74,11 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string | null
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_current_period_end?: string | null
+          subscription_status?: string | null
           updated_at?: string
           user_id: string
         }
@@ -77,6 +87,11 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string | null
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_current_period_end?: string | null
+          subscription_status?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -87,9 +102,13 @@ export type Database = {
           completed_at: string | null
           cost_tokens: number | null
           cost_usd: number | null
+          error_message: string | null
           id: string
+          model: string | null
           started_at: string
           status: string
+          trace_id: string | null
+          trace_url: string | null
           user_id: string
           video_id: string
         }
@@ -97,9 +116,13 @@ export type Database = {
           completed_at?: string | null
           cost_tokens?: number | null
           cost_usd?: number | null
+          error_message?: string | null
           id?: string
+          model?: string | null
           started_at?: string
           status?: string
+          trace_id?: string | null
+          trace_url?: string | null
           user_id: string
           video_id: string
         }
@@ -107,9 +130,13 @@ export type Database = {
           completed_at?: string | null
           cost_tokens?: number | null
           cost_usd?: number | null
+          error_message?: string | null
           id?: string
+          model?: string | null
           started_at?: string
           status?: string
+          trace_id?: string | null
+          trace_url?: string | null
           user_id?: string
           video_id?: string
         }

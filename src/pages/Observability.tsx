@@ -13,6 +13,10 @@ interface RunRow {
   cost_tokens: number | null;
   cost_usd: number | null;
   started_at: string;
+  trace_id: string | null;
+  trace_url: string | null;
+  model: string | null;
+  error_message: string | null;
 }
 
 export default function Observability() {
@@ -107,11 +111,29 @@ export default function Observability() {
                     <div>
                       <p className="text-sm font-medium">Run #{run.id.slice(0, 8)}</p>
                       <p className="text-xs text-muted-foreground">{format(new Date(run.started_at), "MMM d · h:mm a")}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {run.trace_url && (
+                          <a
+                            href={run.trace_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Trace
+                          </a>
+                        )}
+                        {run.model && <span className="text-xs text-muted-foreground">{run.model}</span>}
+                        {run.error_message && (
+                          <span className="text-xs text-destructive truncate max-w-80">{run.error_message}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-4 text-sm">
                       <span className="text-muted-foreground">{(run.cost_tokens || 0).toLocaleString()} tokens</span>
                       <span className="font-medium">${(Number(run.cost_usd) || 0).toFixed(4)}</span>
-                      <Badge variant={run.status === "completed" ? "default" : "destructive"}>{run.status}</Badge>
+                      <Badge variant={run.status === "completed" ? "default" : run.status === "failed" ? "destructive" : "secondary"}>
+                        {run.status}
+                      </Badge>
                     </div>
                   </div>
                 ))}

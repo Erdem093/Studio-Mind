@@ -35,6 +35,7 @@ export default function VideoDetail() {
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [artifactCounts, setArtifactCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
 
   const fetchData = async () => {
     if (!videoId) return;
@@ -58,30 +59,32 @@ export default function VideoDetail() {
 
   const triggerRun = async () => {
     if (!videoId || !user) return;
-    const { data: runData, error } = await supabase.from("runs").insert({
-      video_id: videoId,
-      user_id: user.id,
-      status: "completed",
-      cost_tokens: Math.floor(Math.random() * 5000) + 1000,
-      cost_usd: parseFloat((Math.random() * 0.5 + 0.05).toFixed(4)),
-      completed_at: new Date().toISOString(),
-    }).select().single();
-    if (error || !runData) {
-      toast({ title: "Error", description: error?.message || "Failed to create run", variant: "destructive" });
+    setRunning(true);
+    const { data, error } = await supabase.functions.invoke("run-pipeline", {
+      body: { videoId },
+    });
+
+    if (error) {
+      toast({ title: "Run failed", description: error.message, variant: "destructive" });
+      await fetchData();
+      setRunning(false);
       return;
     }
-    // Generate mock artifacts
-    const mockArtifacts = [
-      { run_id: runData.id, user_id: user.id, type: "story", content: "ACT 1 — THE SETUP\nIntroduce the challenge: learning guitar from zero in just 24 hours. Show the stakes, the doubts, and the first awkward chord.\n\nACT 2 — THE STRUGGLE\nMontage of practice sessions, sore fingers, failed attempts. Interview a guitar teacher who gives a crash-course.\n\nACT 3 — THE PAYOFF\nPerform a simple song in front of friends. Reveal whether 24 hours was enough." },
-      { run_id: runData.id, user_id: user.id, type: "script", content: "[COLD OPEN]\n\"I've never touched a guitar in my life. In 24 hours, I'm going to perform a song in front of a live audience. Let's see if that's even possible.\"\n\n[SEGMENT 1 — Hour 0-4]\nPick up guitar, learn basic chords (G, C, D). Show the frustration. Quick cuts of failed strums.\n\n[SEGMENT 2 — Hour 4-12]\nMeet a teacher. Learn a simple song structure. Practice until fingers hurt.\n\n[SEGMENT 3 — Hour 12-24]\nFinal rehearsal. Build tension. Cut to the performance.\n\n[OUTRO]\nReflect on what was learned. Tease the next challenge." },
-      { run_id: runData.id, user_id: user.id, type: "hook", content: "Hook Option A: \"They said it takes 10,000 hours to master guitar. I had 24.\"\n\nHook Option B: \"I bet my friend $500 I could learn guitar in a single day.\"\n\nHook Option C: \"What if you only had 24 hours to learn an instrument from scratch?\"" },
-      { run_id: runData.id, user_id: user.id, type: "title", content: "Title Option A: \"I Learned Guitar in 24 Hours (It Didn't Go Well)\"\nTitle Option B: \"24 Hour Guitar Challenge — Zero to Performance\"\nTitle Option C: \"Can You ACTUALLY Learn Guitar in One Day?\"\n\nThumbnail idea: Split frame — left side shows confused face holding guitar wrong, right side shows confident performance pose. Big bold text: \"24 HRS\"" },
-    ];
-    const { error: artError } = await supabase.from("artifacts").insert(mockArtifacts);
-    if (artError) {
-      toast({ title: "Warning", description: "Run created but artifacts failed: " + artError.message, variant: "destructive" });
+
+    if ((data as { error?: string } | null)?.error) {
+      toast({
+        title: "Run failed",
+        description: (data as { error: string }).error,
+        variant: "destructive",
+      });
+      await fetchData();
+      setRunning(false);
+      return;
     }
-    fetchData();
+
+    toast({ title: "Run complete", description: "Artifacts were generated successfully." });
+    await fetchData();
+    setRunning(false);
   };
 
   const statusIcon = (status: string) => {
@@ -127,7 +130,10 @@ export default function VideoDetail() {
               <span className="text-sm text-muted-foreground">Created {format(new Date(video.created_at), "MMM d, yyyy")}</span>
             </div>
           </div>
-          <Button onClick={triggerRun}><Play className="mr-2 h-4 w-4" />New Run</Button>
+          <Button onClick={triggerRun} disabled={running}>
+            <Play className="mr-2 h-4 w-4" />
+            {running ? "Running..." : "New Run"}
+          </Button>
         </div>
 
         <div>
@@ -136,7 +142,10 @@ export default function VideoDetail() {
             <Card className="text-center py-8">
               <CardContent>
                 <p className="text-muted-foreground mb-4">No runs yet. Trigger your first AI pipeline run.</p>
-                <Button onClick={triggerRun}><Play className="mr-2 h-4 w-4" />Run Pipeline</Button>
+                <Button onClick={triggerRun} disabled={running}>
+                  <Play className="mr-2 h-4 w-4" />
+                  {running ? "Running..." : "Run Pipeline"}
+                </Button>
               </CardContent>
             </Card>
           ) : (
