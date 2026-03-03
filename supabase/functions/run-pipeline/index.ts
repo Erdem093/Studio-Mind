@@ -3,6 +3,7 @@ import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4.1-mini";
 const AGENT_VERSION = "v1";
+const SERVICE_NAME = "studio-mind-run-pipeline";
 
 type AgentName = "HookAgent" | "ScriptAgent" | "TitleAgent" | "StrategyAgent";
 type ArtifactType = "hook" | "script" | "title" | "strategy";
@@ -41,6 +42,19 @@ type AgentExecutionMetrics = {
   error_message: string | null;
 };
 
+type SpanAttr = { key: string; value: Record<string, unknown> };
+
+type SpanRecord = {
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  startTimeUnixNano: string;
+  endTimeUnixNano: string;
+  statusCode: number;
+  statusMessage?: string;
+  attributes: SpanAttr[];
+};
+
 const MODEL_PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   "gpt-4.1-mini": { input: 0.4, output: 1.6 },
   "gpt-4.1": { input: 2.0, output: 8.0 },
@@ -74,6 +88,93 @@ const AGENTS: AgentDefinition[] = [
   },
 ];
 
+function randomHex(bytes: number): string {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function nowNano(): string {
+  return (BigInt(Date.now()) * 1_000_000n).toString();
+}
+
+function spanAttrString(key: string, value: string): SpanAttr {
+  return { key, value: { stringValue: value } };
+}
+
+function spanAttrInt(key: string, value: number): SpanAttr {
+  return { key, value: { intValue: String(Math.trunc(value)) } };
+}
+
+function spanAttrDouble(key: string, value: number): SpanAttr {
+  return { key, value: { doubleValue: value } };
+}
+
+function normalizeCollectorUrl(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes("/v1/traces")) return trimmed;
+  if (trimmed.endsWith("/")) return `${trimmed}v1/traces`;
+  return `${trimmed}/v1/traces`;
+}
+
+async function exportTrace(traceId: string, spans: SpanRecord[], runId: string) {
+  const apiKey = Deno.env.get("ANYWAY_API_KEY");
+  const collector = normalizeCollectorUrl(Deno.env.get("ANYWAY_API_URL") ?? "https://collector.anyway.sh");
+
+  if (!apiKey || !collector || spans.length === 0) {
+    return;
+  }
+
+  const payload = {
+    resourceSpans: [
+      {
+        resource: {
+          attributes: [
+            spanAttrString("service.name", SERVICE_NAME),
+            spanAttrString("deployment.environment", Deno.env.get("DENO_DEPLOYMENT_ID") ? "production" : "development"),
+            spanAttrString("studio.run_id", runId),
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "studio-mind.observability",
+              version: "1.0.0",
+            },
+            spans: spans.map((span) => ({
+              traceId,
+              spanId: span.spanId,
+              parentSpanId: span.parentSpanId,
+              name: span.name,
+              kind: 1,
+              startTimeUnixNano: span.startTimeUnixNano,
+              endTimeUnixNano: span.endTimeUnixNano,
+              attributes: span.attributes,
+              status: {
+                code: span.statusCode,
+                message: span.statusMessage,
+              },
+            })),
+          },
+        ],
+      },
+    ],
+  };
+
+  await fetch(collector, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: apiKey,
+    },
+    body: JSON.stringify(payload),
+  }).catch(() => {
+    // Observability export is best-effort and must never fail the pipeline.
+  });
+}
+
 function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number {
   const pricing = MODEL_PRICING_PER_1M[model] ?? MODEL_PRICING_PER_1M["gpt-4.1-mini"];
   const inputCost = (promptTokens / 1_000_000) * pricing.input;
@@ -81,8 +182,8 @@ function estimateCostUsd(model: string, promptTokens: number, completionTokens: 
   return Number((inputCost + outputCost).toFixed(4));
 }
 
-function buildTrace(projectId?: string): { traceId: string; traceUrl: string | null } {
-  const traceId = crypto.randomUUID();
+function buildTrace(): { traceId: string; traceUrl: string | null } {
+  const traceId = randomHex(16);
   const base = Deno.env.get("ANYWAY_TRACE_BASE_URL") ?? "";
 
   if (!base) {
@@ -90,29 +191,7 @@ function buildTrace(projectId?: string): { traceId: string; traceUrl: string | n
   }
 
   const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
-  const traceUrl = projectId
-    ? `${normalizedBase}/projects/${projectId}/traces/${traceId}`
-    : `${normalizedBase}/traces/${traceId}`;
-
-  return { traceId, traceUrl };
-}
-
-async function maybeEmitAnywayEvent(payload: Record<string, unknown>) {
-  const apiUrl = Deno.env.get("ANYWAY_API_URL");
-  const apiKey = Deno.env.get("ANYWAY_API_KEY");
-
-  if (!apiUrl || !apiKey) return;
-
-  await fetch(apiUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-  }).catch(() => {
-    // Keep observability best-effort for demo reliability.
-  });
+  return { traceId, traceUrl: `${normalizedBase}/traces/${traceId}` };
 }
 
 async function loadMemory(
@@ -301,9 +380,12 @@ Deno.serve(async (req) => {
   }
 
   let runId: string | null = null;
-  const anywayProjectId = Deno.env.get("ANYWAY_PROJECT_ID") ?? undefined;
-  const trace = buildTrace(anywayProjectId);
+  const trace = buildTrace();
   const metrics: AgentExecutionMetrics[] = [];
+  const spanRecords: SpanRecord[] = [];
+
+  const rootSpanId = randomHex(8);
+  const rootStart = nowNano();
 
   try {
     const { data: run, error: runInsertError } = await adminClient
@@ -327,18 +409,6 @@ Deno.serve(async (req) => {
 
     const memorySummary = await loadMemory(adminClient, user.id, video.id);
 
-    await maybeEmitAnywayEvent({
-      event_type: "trace_start",
-      trace_id: trace.traceId,
-      trace_url: trace.traceUrl,
-      run_id: runId,
-      user_id: user.id,
-      video_id: video.id,
-      pipeline: "content_generation_pipeline",
-      model: OPENAI_MODEL,
-      created_at: new Date().toISOString(),
-    });
-
     const context: RunContext = {
       userId: user.id,
       runId,
@@ -351,24 +421,14 @@ Deno.serve(async (req) => {
     const artifactRows: Array<{ run_id: string; user_id: string; type: string; content: string; agent_name: string; agent_version: string }> = [];
 
     for (const agent of AGENTS) {
-      const spanStart = Date.now();
-      const spanId = crypto.randomUUID();
-
-      await maybeEmitAnywayEvent({
-        event_type: "span_start",
-        trace_id: trace.traceId,
-        span_id: spanId,
-        run_id: runId,
-        span_name: `${agent.name}.generate`,
-        agent_name: agent.name,
-        artifact_type: agent.artifactType,
-        started_at: new Date().toISOString(),
-      });
+      const spanId = randomHex(8);
+      const spanStart = nowNano();
+      const perfStart = Date.now();
 
       try {
         const result = await callAgent(openAiApiKey, agent, context);
         const costUsd = estimateCostUsd(OPENAI_MODEL, result.promptTokens, result.completionTokens);
-        const latencyMs = Date.now() - spanStart;
+        const latencyMs = Date.now() - perfStart;
 
         artifactRows.push({
           run_id: runId,
@@ -392,21 +452,33 @@ Deno.serve(async (req) => {
         };
         metrics.push(metric);
 
-        await maybeEmitAnywayEvent({
-          event_type: "span_end",
-          trace_id: trace.traceId,
-          span_id: spanId,
-          run_id: runId,
-          span_name: `${agent.name}.generate`,
-          ...metric,
-          ended_at: new Date().toISOString(),
+        spanRecords.push({
+          spanId,
+          parentSpanId: rootSpanId,
+          name: `${agent.name}.generate`,
+          startTimeUnixNano: spanStart,
+          endTimeUnixNano: nowNano(),
+          statusCode: 1,
+          attributes: [
+            spanAttrString("llm.vendor", "openai"),
+            spanAttrString("llm.model", OPENAI_MODEL),
+            spanAttrString("studio.agent_name", agent.name),
+            spanAttrString("studio.artifact_type", agent.artifactType),
+            spanAttrInt("llm.tokens.input", result.promptTokens),
+            spanAttrInt("llm.tokens.output", result.completionTokens),
+            spanAttrInt("llm.tokens.total", result.totalTokens),
+            spanAttrDouble("llm.cost", costUsd),
+            spanAttrInt("studio.latency_ms", latencyMs),
+          ],
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown agent error";
+        const latencyMs = Date.now() - perfStart;
+
         const metric: AgentExecutionMetrics = {
           agent_name: agent.name,
           artifact_type: agent.artifactType,
-          latency_ms: Date.now() - spanStart,
+          latency_ms: latencyMs,
           prompt_tokens: 0,
           completion_tokens: 0,
           total_tokens: 0,
@@ -416,14 +488,20 @@ Deno.serve(async (req) => {
         };
         metrics.push(metric);
 
-        await maybeEmitAnywayEvent({
-          event_type: "span_error",
-          trace_id: trace.traceId,
-          span_id: spanId,
-          run_id: runId,
-          span_name: `${agent.name}.generate`,
-          ...metric,
-          ended_at: new Date().toISOString(),
+        spanRecords.push({
+          spanId,
+          parentSpanId: rootSpanId,
+          name: `${agent.name}.generate`,
+          startTimeUnixNano: spanStart,
+          endTimeUnixNano: nowNano(),
+          statusCode: 2,
+          statusMessage: message,
+          attributes: [
+            spanAttrString("studio.agent_name", agent.name),
+            spanAttrString("studio.artifact_type", agent.artifactType),
+            spanAttrInt("studio.latency_ms", latencyMs),
+            spanAttrString("error.message", message),
+          ],
         });
 
         throw new Error(`${agent.name} failed: ${message}`);
@@ -431,7 +509,6 @@ Deno.serve(async (req) => {
     }
 
     const { error: artifactError } = await adminClient.from("artifacts").insert(artifactRows);
-
     if (artifactError) {
       throw new Error(`Artifact insert failed: ${artifactError.message}`);
     }
@@ -439,12 +516,19 @@ Deno.serve(async (req) => {
     const totalTokens = metrics.reduce((sum, item) => sum + item.total_tokens, 0);
     const totalCostUsd = Number(metrics.reduce((sum, item) => sum + item.cost_usd, 0).toFixed(4));
 
-    await upsertMemory(adminClient, user.id, video.id, "last_success_summary", {
-      title: video.title,
-      generated_agents: AGENTS.map((agent) => agent.name),
-      generated_at: new Date().toISOString(),
-      note: "Last run completed successfully.",
-    }, "run_summary");
+    await upsertMemory(
+      adminClient,
+      user.id,
+      video.id,
+      "last_success_summary",
+      {
+        title: video.title,
+        generated_agents: AGENTS.map((agent) => agent.name),
+        generated_at: new Date().toISOString(),
+        note: "Last run completed successfully.",
+      },
+      "run_summary",
+    );
 
     const { error: runUpdateError } = await adminClient
       .from("runs")
@@ -465,21 +549,24 @@ Deno.serve(async (req) => {
       throw new Error(`Run update failed: ${runUpdateError.message}`);
     }
 
-    await maybeEmitAnywayEvent({
-      event_type: "trace_end",
-      trace_id: trace.traceId,
-      trace_url: trace.traceUrl,
-      run_id: runId,
-      user_id: user.id,
-      video_id: video.id,
-      model: OPENAI_MODEL,
-      total_tokens: totalTokens,
-      cost_usd: totalCostUsd,
-      agent_count: AGENTS.length,
-      failed_agent_count: metrics.filter((metric) => metric.status === "failed").length,
-      status: "completed",
-      created_at: new Date().toISOString(),
+    spanRecords.push({
+      spanId: rootSpanId,
+      name: "content_generation_pipeline",
+      startTimeUnixNano: rootStart,
+      endTimeUnixNano: nowNano(),
+      statusCode: 1,
+      attributes: [
+        spanAttrString("studio.run_id", runId),
+        spanAttrString("studio.video_id", video.id),
+        spanAttrString("studio.user_id", user.id),
+        spanAttrString("llm.model", OPENAI_MODEL),
+        spanAttrInt("llm.tokens.total", totalTokens),
+        spanAttrDouble("llm.cost", totalCostUsd),
+        spanAttrInt("studio.agent_count", AGENTS.length),
+      ],
     });
+
+    await exportTrace(trace.traceId, spanRecords, runId);
 
     return jsonResponse(200, {
       runId,
@@ -504,21 +591,26 @@ Deno.serve(async (req) => {
           agent_metrics: metrics,
         })
         .eq("id", runId);
-    }
 
-    await maybeEmitAnywayEvent({
-      event_type: "trace_error",
-      trace_id: trace.traceId,
-      trace_url: trace.traceUrl,
-      run_id: runId,
-      user_id: user.id,
-      video_id: video.id,
-      model: OPENAI_MODEL,
-      status: "failed",
-      error_message: message,
-      failed_agent_count: metrics.filter((metric) => metric.status === "failed").length,
-      created_at: new Date().toISOString(),
-    });
+      spanRecords.push({
+        spanId: rootSpanId,
+        name: "content_generation_pipeline",
+        startTimeUnixNano: rootStart,
+        endTimeUnixNano: nowNano(),
+        statusCode: 2,
+        statusMessage: message,
+        attributes: [
+          spanAttrString("studio.run_id", runId),
+          spanAttrString("studio.video_id", video.id),
+          spanAttrString("studio.user_id", user.id),
+          spanAttrString("llm.model", OPENAI_MODEL),
+          spanAttrString("error.message", message),
+          spanAttrInt("studio.failed_agent_count", metrics.filter((metric) => metric.status === "failed").length),
+        ],
+      });
+
+      await exportTrace(trace.traceId, spanRecords, runId);
+    }
 
     return jsonResponse(500, {
       error: message,
