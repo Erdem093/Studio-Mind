@@ -23,6 +23,7 @@ type RunContext = {
   description: string | null;
   isPro: boolean;
   memoryByAgent: Record<AgentName, CompiledMemory>;
+  channelBaselineText: string;
 };
 
 type AgentOutput = {
@@ -88,6 +89,11 @@ type CompiledMemory = {
 type ExportResult = {
   status: "success" | "failed" | "skipped";
   error: string | null;
+};
+
+type ChannelBaseline = {
+  text: string;
+  applied: Record<string, unknown>;
 };
 
 const MODEL_PRICING_PER_1M: Record<string, { input: number; output: number }> = {
@@ -406,6 +412,56 @@ async function loadCompiledMemory(
   };
 }
 
+async function loadChannelBaseline(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<ChannelBaseline> {
+  const [{ data: profile }, { data: preference }, { data: inspirations }] = await Promise.all([
+    adminClient
+      .from("profiles")
+      .select("channel_summary_prompt, channel_style_goal")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    adminClient
+      .from("channel_preferences")
+      .select("tone, pacing, hook_style, script_length_preference, banned_phrases, cta_style, notes")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    adminClient
+      .from("channel_inspirations")
+      .select("youtube_url, note, label")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  const lines = [
+    "CHANNEL STYLE BASELINE",
+    `Channel goal: ${profile?.channel_style_goal ?? "not set"}`,
+    `Summary prompt: ${profile?.channel_summary_prompt ?? "not set"}`,
+    `Tone: ${preference?.tone ?? "not set"}`,
+    `Pacing: ${preference?.pacing ?? "not set"}`,
+    `Hook style: ${preference?.hook_style ?? "not set"}`,
+    `Script length preference: ${preference?.script_length_preference ?? "not set"}`,
+    `Banned phrases: ${Array.isArray(preference?.banned_phrases) && preference?.banned_phrases.length > 0 ? preference.banned_phrases.join(", ") : "none"}`,
+    `CTA style: ${preference?.cta_style ?? "not set"}`,
+    `Notes: ${preference?.notes ?? "none"}`,
+    `Inspirations: ${(inspirations || []).length > 0
+      ? (inspirations || []).map((item) => `${item.youtube_url}${item.note ? ` (${item.note})` : ""}${item.label ? ` [${item.label}]` : ""}`).join("; ")
+      : "none"}`,
+  ];
+
+  return {
+    text: lines.join("\n"),
+    applied: {
+      channel_summary_prompt: profile?.channel_summary_prompt ? true : false,
+      channel_style_goal: profile?.channel_style_goal ? true : false,
+      channel_preferences: preference ? true : false,
+      channel_inspirations_count: (inspirations || []).length,
+    },
+  };
+}
+
 function formatTitleAgentContent(parsed: Record<string, unknown>, isPro: boolean): string {
   const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
   const thumbnailBrief = typeof parsed.thumbnail_brief === "string" ? parsed.thumbnail_brief.trim() : "";
@@ -442,6 +498,7 @@ async function callAgent(
   const userPrompt = [
     `Video Title: ${context.title}`,
     `Video Description: ${context.description ?? "(none)"}`,
+    context.channelBaselineText,
     compiled.constraintsText,
     `TASK\nGenerate ${agent.artifactType} output for this video.`,
     `QUALITY CHECKLIST\n${agent.qualityChecklist.map((line) => `- ${line}`).join("\n")}`,
@@ -651,6 +708,7 @@ Deno.serve(async (req) => {
   const rootStart = nowNano();
 
   let compiledMemoryMap: Record<AgentName, CompiledMemory> | null = null;
+  let channelBaseline: ChannelBaseline | null = null;
   let collectorStatus: ExportResult = { status: "skipped", error: null };
 
   try {
@@ -674,11 +732,13 @@ Deno.serve(async (req) => {
     runId = run.id;
 
     compiledMemoryMap = await loadCompiledMemory(adminClient, user.id, video.id);
+    channelBaseline = await loadChannelBaseline(adminClient, user.id);
 
     const memoryApplied = AGENTS.map((agent) => ({
       agent: agent.name,
       memory_rows: compiledMemoryMap?.[agent.name].appliedMemoryRows ?? [],
       feedback_rows: compiledMemoryMap?.[agent.name].appliedFeedbackRows ?? [],
+      channel_baseline: channelBaseline?.applied ?? {},
     }));
 
     const context: RunContext = {
@@ -689,6 +749,7 @@ Deno.serve(async (req) => {
       description: video.description,
       isPro,
       memoryByAgent: compiledMemoryMap,
+      channelBaselineText: channelBaseline.text,
     };
 
     const artifactRows: Array<{ run_id: string; user_id: string; type: ArtifactType; content: string; agent_name: string; agent_version: string }> = [];
@@ -925,6 +986,7 @@ Deno.serve(async (req) => {
               agent: agent.name,
               memory_rows: compiledMemoryMap?.[agent.name].appliedMemoryRows ?? [],
               feedback_rows: compiledMemoryMap?.[agent.name].appliedFeedbackRows ?? [],
+              channel_baseline: channelBaseline?.applied ?? {},
             }))
             : null,
           collector_export_status: collectorStatus.status,

@@ -189,6 +189,21 @@ Deno.serve(async (req) => {
     });
   }
 
+  await adminClient.from("agent_modification_log").insert({
+    user_id: user.id,
+    video_id: run.video_id,
+    run_id: runId,
+    agent_name: targetAgentName,
+    source: "feedback",
+    change_summary: `Feedback submitted: ${reasonCode}`,
+    metadata: {
+      reason_code: reasonCode,
+      free_text: freeText,
+      applies_globally: appliesGlobally,
+      artifact_id: normalizedArtifactId,
+    },
+  });
+
   return jsonResponse(200, {
     success: true,
     agentName: targetAgentName,

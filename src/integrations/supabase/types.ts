@@ -152,12 +152,132 @@ export type Database = {
           },
         ]
       }
+      agent_modification_log: {
+        Row: {
+          agent_name: string | null
+          change_summary: string
+          created_at: string
+          id: string
+          metadata: Json
+          run_id: string | null
+          source: string
+          user_id: string
+          video_id: string | null
+        }
+        Insert: {
+          agent_name?: string | null
+          change_summary: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          run_id?: string | null
+          source: string
+          user_id: string
+          video_id?: string | null
+        }
+        Update: {
+          agent_name?: string | null
+          change_summary?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          run_id?: string | null
+          source?: string
+          user_id?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_modification_log_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_modification_log_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_inspirations: {
+        Row: {
+          created_at: string
+          id: string
+          label: string | null
+          note: string | null
+          user_id: string
+          youtube_url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          note?: string | null
+          user_id: string
+          youtube_url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string | null
+          note?: string | null
+          user_id?: string
+          youtube_url?: string
+        }
+        Relationships: []
+      }
+      channel_preferences: {
+        Row: {
+          banned_phrases: string[]
+          cta_style: string | null
+          hook_style: string
+          id: string
+          notes: string | null
+          pacing: string
+          script_length_preference: string
+          tone: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          banned_phrases?: string[]
+          cta_style?: string | null
+          hook_style?: string
+          id?: string
+          notes?: string | null
+          pacing?: string
+          script_length_preference?: string
+          tone?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          banned_phrases?: string[]
+          cta_style?: string | null
+          hook_style?: string
+          id?: string
+          notes?: string | null
+          pacing?: string
+          script_length_preference?: string
+          tone?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
+          channel_style_goal: string | null
+          channel_summary_prompt: string | null
           created_at: string
           id: string
           name: string | null
+          onboarding_completed_at: string | null
           stripe_connect_account_id: string | null
           stripe_customer_id: string | null
           stripe_price_id: string | null
@@ -171,9 +291,12 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          channel_style_goal?: string | null
+          channel_summary_prompt?: string | null
           created_at?: string
           id?: string
           name?: string | null
+          onboarding_completed_at?: string | null
           stripe_connect_account_id?: string | null
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
@@ -187,9 +310,12 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          channel_style_goal?: string | null
+          channel_summary_prompt?: string | null
           created_at?: string
           id?: string
           name?: string | null
+          onboarding_completed_at?: string | null
           stripe_connect_account_id?: string | null
           stripe_customer_id?: string | null
           stripe_price_id?: string | null

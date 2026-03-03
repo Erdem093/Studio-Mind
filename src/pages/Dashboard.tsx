@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Video, Zap, TrendingUp } from "lucide-react";
+import { Plus, Video, Zap, TrendingUp, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppLayout } from "@/components/AppLayout";
@@ -30,6 +30,9 @@ export default function Dashboard() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [titleSuggestion, setTitleSuggestion] = useState("");
+  const [descriptionSuggestion, setDescriptionSuggestion] = useState("");
+  const [suggestingTarget, setSuggestingTarget] = useState<"title" | "description" | null>(null);
   const [runCounts, setRunCounts] = useState<Record<string, number>>({});
 
   const fetchVideos = async () => {
@@ -58,9 +61,47 @@ export default function Dashboard() {
     } else {
       setNewTitle("");
       setNewDesc("");
+      setTitleSuggestion("");
+      setDescriptionSuggestion("");
       setDialogOpen(false);
       fetchVideos();
     }
+  };
+
+  const suggestCopy = async (target: "title" | "description") => {
+    setSuggestingTarget(target);
+    const { data, error } = await supabase.functions.invoke("suggest-video-copy", {
+      body: {
+        target,
+        currentText: target === "title" ? newTitle : newDesc,
+        contextText: target === "title" ? newDesc : newTitle,
+      },
+    });
+
+    if (error || (data as { error?: string } | null)?.error) {
+      toast({
+        title: "Suggestion failed",
+        description: error?.message || (data as { error?: string } | null)?.error || "Unknown error",
+        variant: "destructive",
+      });
+      setSuggestingTarget(null);
+      return;
+    }
+
+    const suggestion = ((data as { suggestion?: string } | null)?.suggestion || "").trim();
+    if (!suggestion) {
+      toast({ title: "Suggestion failed", description: "No suggestion returned", variant: "destructive" });
+      setSuggestingTarget(null);
+      return;
+    }
+
+    if (target === "title") {
+      setTitleSuggestion(suggestion);
+    } else {
+      setDescriptionSuggestion(suggestion);
+    }
+
+    setSuggestingTarget(null);
   };
 
   const totalRuns = Object.values(runCounts).reduce((a, b) => a + b, 0);
@@ -81,12 +122,38 @@ export default function Dashboard() {
               <DialogHeader><DialogTitle>Create Video Project</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <Label>Title</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Title</Label>
+                    <Button variant="outline" size="sm" onClick={() => suggestCopy("title")} disabled={suggestingTarget !== null}>
+                      <Wand2 className="mr-2 h-3.5 w-3.5" />
+                      {suggestingTarget === "title" ? "Suggesting..." : "Suggest Title"}
+                    </Button>
+                  </div>
                   <Input placeholder="e.g. I tried to learn guitar in 24 hours" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                  {titleSuggestion && (
+                    <div className="rounded-md border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground mb-1">Suggested Title</p>
+                      <p className="text-sm">{titleSuggestion}</p>
+                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setNewTitle(titleSuggestion)}>Apply</Button>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
-                  <Label>Idea / Description</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Idea / Description</Label>
+                    <Button variant="outline" size="sm" onClick={() => suggestCopy("description")} disabled={suggestingTarget !== null}>
+                      <Wand2 className="mr-2 h-3.5 w-3.5" />
+                      {suggestingTarget === "description" ? "Suggesting..." : "Suggest Description"}
+                    </Button>
+                  </div>
                   <Textarea placeholder="Describe your video concept..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
+                  {descriptionSuggestion && (
+                    <div className="rounded-md border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground mb-1">Suggested Description</p>
+                      <p className="text-sm whitespace-pre-wrap">{descriptionSuggestion}</p>
+                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setNewDesc(descriptionSuggestion)}>Apply</Button>
+                    </div>
+                  )}
                 </div>
                 <Button onClick={createVideo} className="w-full">Create Project</Button>
               </div>

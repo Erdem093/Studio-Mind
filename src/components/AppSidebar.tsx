@@ -1,6 +1,5 @@
-import { LayoutDashboard, Video, CreditCard, Activity, LogOut } from "lucide-react";
+import { LayoutDashboard, CreditCard, Activity, LogOut, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
@@ -17,6 +16,7 @@ import {
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+  { title: "Preferences", url: "/preferences", icon: SlidersHorizontal },
   { title: "Billing", url: "/billing", icon: CreditCard },
   { title: "Observability", url: "/observability", icon: Activity },
 ];
@@ -24,8 +24,7 @@ const navItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const location = useLocation();
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
 
   return (
     <Sidebar collapsible="icon">

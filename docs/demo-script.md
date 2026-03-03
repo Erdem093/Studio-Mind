@@ -4,6 +4,13 @@
 
 - Open deployed app landing page.
 - Mention this is built for Anyway + Animoca tracks.
+- Log in and show required onboarding gate.
+
+## 0.5 Onboarding (60s)
+
+- Complete channel goal, style settings, and inspiration links.
+- Generate baseline prompt and confirm save.
+- Mention this baseline is injected into every future run.
 
 ## 1. Problem (45s)
 

@@ -12,6 +12,8 @@ import VideoDetail from "./pages/VideoDetail";
 import RunDetail from "./pages/RunDetail";
 import Billing from "./pages/Billing";
 import Observability from "./pages/Observability";
+import Onboarding from "./pages/Onboarding";
+import Preferences from "./pages/Preferences";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,9 +28,11 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/onboarding" element={<ProtectedRoute allowOnboardingIncomplete><Onboarding /></ProtectedRoute>} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/video/:videoId" element={<ProtectedRoute><VideoDetail /></ProtectedRoute>} />
             <Route path="/run/:runId" element={<ProtectedRoute><RunDetail /></ProtectedRoute>} />
+            <Route path="/preferences" element={<ProtectedRoute><Preferences /></ProtectedRoute>} />
             <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
             <Route path="/observability" element={<ProtectedRoute><Observability /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

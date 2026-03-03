@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Play, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, Play, Clock, CheckCircle, XCircle, Trash2, Wand2, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,9 @@ import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
@@ -58,6 +61,13 @@ export default function VideoDetail() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+  const [metaSaving, setMetaSaving] = useState(false);
+  const [titleSuggestion, setTitleSuggestion] = useState("");
+  const [descriptionSuggestion, setDescriptionSuggestion] = useState("");
+  const [suggestingTarget, setSuggestingTarget] = useState<"title" | "description" | null>(null);
 
   const fetchData = async () => {
     if (!videoId) return;
@@ -66,6 +76,8 @@ export default function VideoDetail() {
       supabase.from("runs").select("*").eq("video_id", videoId).order("started_at", { ascending: false }),
     ]);
     setVideo(v);
+    setDraftTitle(v?.title || "");
+    setDraftDescription(v?.description || "");
     setRuns(r || []);
 
     if (r && r.length > 0) {
@@ -138,6 +150,59 @@ export default function VideoDetail() {
     navigate("/dashboard");
   };
 
+  const saveVideoMeta = async () => {
+    if (!videoId) return;
+    setMetaSaving(true);
+    const { error } = await supabase
+      .from("videos")
+      .update({ title: draftTitle.trim(), description: draftDescription.trim() || null })
+      .eq("id", videoId);
+
+    if (error) {
+      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+      setMetaSaving(false);
+      return;
+    }
+
+    toast({ title: "Saved", description: "Video details updated." });
+    setEditingMeta(false);
+    setTitleSuggestion("");
+    setDescriptionSuggestion("");
+    await fetchData();
+    setMetaSaving(false);
+  };
+
+  const suggestCopy = async (target: "title" | "description") => {
+    if (!videoId) return;
+    setSuggestingTarget(target);
+    const { data, error } = await supabase.functions.invoke("suggest-video-copy", {
+      body: {
+        videoId,
+        target,
+        currentText: target === "title" ? draftTitle : draftDescription,
+        contextText: target === "title" ? draftDescription : draftTitle,
+      },
+    });
+
+    if (error || (data as { error?: string } | null)?.error) {
+      const description = error ? await readFunctionErrorMessage(error) : (data as { error?: string } | null)?.error || "Unknown error";
+      toast({ title: "Suggestion failed", description, variant: "destructive" });
+      setSuggestingTarget(null);
+      return;
+    }
+
+    const suggestion = ((data as { suggestion?: string } | null)?.suggestion || "").trim();
+    if (!suggestion) {
+      toast({ title: "Suggestion failed", description: "No suggestion returned", variant: "destructive" });
+      setSuggestingTarget(null);
+      return;
+    }
+
+    if (target === "title") setTitleSuggestion(suggestion);
+    else setDescriptionSuggestion(suggestion);
+    setSuggestingTarget(null);
+  };
+
   if (loading) {
     return (
       <AppLayout>
@@ -167,9 +232,58 @@ export default function VideoDetail() {
         </Link>
 
         <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-display font-bold">{video.title}</h1>
-            {video.description && <p className="text-muted-foreground mt-2">{video.description}</p>}
+          <div className="flex-1">
+            {!editingMeta ? (
+              <>
+                <h1 className="text-3xl font-display font-bold">{video.title}</h1>
+                {video.description && <p className="text-muted-foreground mt-2">{video.description}</p>}
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Title</Label>
+                    <Button size="sm" variant="outline" onClick={() => suggestCopy("title")} disabled={suggestingTarget !== null}>
+                      <Wand2 className="mr-2 h-3.5 w-3.5" />
+                      {suggestingTarget === "title" ? "Suggesting..." : "Suggest Title"}
+                    </Button>
+                  </div>
+                  <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+                  {titleSuggestion && (
+                    <div className="rounded-md border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground mb-1">Suggested Title</p>
+                      <p className="text-sm">{titleSuggestion}</p>
+                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setDraftTitle(titleSuggestion)}>Apply</Button>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Description</Label>
+                    <Button size="sm" variant="outline" onClick={() => suggestCopy("description")} disabled={suggestingTarget !== null}>
+                      <Wand2 className="mr-2 h-3.5 w-3.5" />
+                      {suggestingTarget === "description" ? "Suggesting..." : "Suggest Description"}
+                    </Button>
+                  </div>
+                  <Textarea value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} />
+                  {descriptionSuggestion && (
+                    <div className="rounded-md border p-3 bg-muted/30">
+                      <p className="text-xs text-muted-foreground mb-1">Suggested Description</p>
+                      <p className="text-sm whitespace-pre-wrap">{descriptionSuggestion}</p>
+                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setDraftDescription(descriptionSuggestion)}>Apply</Button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button onClick={saveVideoMeta} disabled={metaSaving}>
+                    {metaSaving ? "Saving..." : "Save"}
+                  </Button>
+                  <Button variant="outline" onClick={() => { setEditingMeta(false); setDraftTitle(video.title); setDraftDescription(video.description || ""); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3 mt-3">
               <Badge variant={video.status === "draft" ? "secondary" : "default"}>{video.status}</Badge>
               <span className="text-sm text-muted-foreground">Created {format(new Date(video.created_at), "MMM d, yyyy")}</span>
@@ -202,6 +316,12 @@ export default function VideoDetail() {
               <Play className="mr-2 h-4 w-4" />
               {running ? "Running..." : "New Run"}
             </Button>
+            {!editingMeta && (
+              <Button variant="outline" onClick={() => setEditingMeta(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Title/Description
+              </Button>
+            )}
           </div>
         </div>
 

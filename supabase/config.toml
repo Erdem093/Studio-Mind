@@ -18,6 +18,15 @@ verify_jwt = false
 [functions.create-connect-checkout-session]
 verify_jwt = false
 
+[functions.delete-project]
+verify_jwt = false
+
+[functions.complete-onboarding]
+verify_jwt = false
+
+[functions.suggest-video-copy]
+verify_jwt = false
+
 [functions.openclaw-pull-jobs]
 verify_jwt = false
 

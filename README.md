@@ -31,6 +31,10 @@ Built for the UK AI Agent Hackathon EP4 with sponsor-track focus on **Anyway** (
   - `queue-youtube-analysis`
   - `openclaw-pull-jobs`
   - `openclaw-push-insights`
+- Channel onboarding + preferences baseline:
+  - required onboarding gate
+  - `complete-onboarding`
+  - `suggest-video-copy` (Suggest + Apply for title/description)
 - Public landing page and SPA rewrites for Vercel
 
 ## Why 4 Specialists + 1 Orchestrator
@@ -55,6 +59,9 @@ Main tables:
 - `runs`
 - `artifacts`
 - `profiles`
+- `channel_preferences`
+- `channel_inspirations`
+- `agent_modification_log`
 - `agent_memory`
 - `run_feedback`
 
@@ -103,6 +110,8 @@ Deployed/used functions:
 - `create-connect-account`
 - `create-connect-checkout-session`
 - `delete-project`
+- `complete-onboarding`
+- `suggest-video-copy`
 - `queue-youtube-analysis`
 - `openclaw-pull-jobs`
 - `openclaw-push-insights`
@@ -117,6 +126,8 @@ supabase functions deploy stripe-webhook
 supabase functions deploy create-connect-account
 supabase functions deploy create-connect-checkout-session
 supabase functions deploy delete-project
+supabase functions deploy complete-onboarding
+supabase functions deploy suggest-video-copy
 supabase functions deploy queue-youtube-analysis
 supabase functions deploy openclaw-pull-jobs
 supabase functions deploy openclaw-push-insights
