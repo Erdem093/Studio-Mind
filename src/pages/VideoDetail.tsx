@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Play, Clock, CheckCircle, XCircle, Trash2, Wand2, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -79,9 +79,42 @@ export default function VideoDetail() {
   const [suggestingTarget, setSuggestingTarget] = useState<"title" | "description" | null>(null);
   const [approvedOutputs, setApprovedOutputs] = useState<ApprovedOutputRow[]>([]);
   const [applyingBaseline, setApplyingBaseline] = useState<string | null>(null);
-  const [runStageIndex, setRunStageIndex] = useState(0);
+  const [runStatusText, setRunStatusText] = useState("Deploying agents...");
+  const [hasFullyApprovedRun, setHasFullyApprovedRun] = useState(false);
+  const stagePoolRef = useRef<string[]>([]);
+  const stageCursorRef = useRef(0);
 
-  const RUN_STAGES = ["Generating agents...", "Generating thumbnail...", "Finalizing run..."];
+  const RUN_STAGES = [
+    "Planning hooks...",
+    "Drafting script beats...",
+    "Tuning title options...",
+    "Assembling strategy notes...",
+    "Checking style memory...",
+    "Compiling feedback constraints...",
+    "Refining audience tone...",
+    "Polishing opening line...",
+    "Balancing script pacing...",
+    "Tightening CTA language...",
+    "Generating thumbnail concept...",
+    "Rendering thumbnail image...",
+    "Enhancing color contrast...",
+    "Validating artifact schema...",
+    "Persisting artifacts...",
+    "Calculating token usage...",
+    "Calculating estimated cost...",
+    "Writing observability metrics...",
+    "Linking trace metadata...",
+    "Finalizing run output...",
+  ];
+
+  const shuffle = (items: string[]) => {
+    const arr = [...items];
+    for (let i = arr.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
 
   const fetchData = async () => {
     if (!videoId) return;
@@ -97,10 +130,22 @@ export default function VideoDetail() {
     setApprovedOutputs((outputs || []) as ApprovedOutputRow[]);
 
     if (r && r.length > 0) {
-      const { data: arts } = await supabase.from("artifacts").select("run_id").in("run_id", r.map((x: any) => x.id));
+      const { data: arts } = await supabase.from("artifacts").select("run_id,type,approval_status").in("run_id", r.map((x: any) => x.id));
       const counts: Record<string, number> = {};
-      (arts || []).forEach((a: any) => { counts[a.run_id] = (counts[a.run_id] || 0) + 1; });
+      const approvedByRun: Record<string, Set<string>> = {};
+      (arts || []).forEach((a: any) => {
+        counts[a.run_id] = (counts[a.run_id] || 0) + 1;
+        if (a.approval_status === "approved") {
+          if (!approvedByRun[a.run_id]) approvedByRun[a.run_id] = new Set<string>();
+          approvedByRun[a.run_id].add(String(a.type));
+        }
+      });
       setArtifactCounts(counts);
+      const required = ["hook", "script", "title", "strategy"];
+      const completed = Object.values(approvedByRun).some((types) => required.every((type) => types.has(type)));
+      setHasFullyApprovedRun(completed);
+    } else {
+      setHasFullyApprovedRun(false);
     }
     setLoading(false);
   };
@@ -172,12 +217,27 @@ export default function VideoDetail() {
 
   useEffect(() => {
     if (!running) {
-      setRunStageIndex(0);
+      setRunStatusText("Deploying agents...");
       return;
     }
 
+    setRunStatusText("Deploying agents...");
+    stagePoolRef.current = shuffle(RUN_STAGES);
+    stageCursorRef.current = 0;
+
     const interval = setInterval(() => {
-      setRunStageIndex((prev) => (prev + 1) % RUN_STAGES.length);
+      let pool = stagePoolRef.current;
+      let cursor = stageCursorRef.current;
+
+      if (cursor >= pool.length) {
+        pool = shuffle(RUN_STAGES);
+        stagePoolRef.current = pool;
+        cursor = 0;
+      }
+
+      const next = pool[cursor];
+      stageCursorRef.current = cursor + 1;
+      setRunStatusText(next);
     }, 5000);
 
     return () => clearInterval(interval);
@@ -404,10 +464,12 @@ export default function VideoDetail() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button onClick={triggerRun} disabled={running || deleting}>
-              <Play className="mr-2 h-4 w-4" />
-              {running ? RUN_STAGES[runStageIndex] : "New Run"}
-            </Button>
+            {!hasFullyApprovedRun && (
+              <Button onClick={triggerRun} disabled={running || deleting}>
+                <Play className="mr-2 h-4 w-4" />
+                {running ? runStatusText : "New Run"}
+              </Button>
+            )}
             {!editingMeta && (
               <Button variant="outline" onClick={() => setEditingMeta(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
@@ -419,13 +481,20 @@ export default function VideoDetail() {
 
         <div>
           <h2 className="text-xl font-display font-semibold mb-4">Run History</h2>
+          {hasFullyApprovedRun && (
+            <Card className="mb-4">
+              <CardContent className="py-4">
+                <p className="text-sm text-muted-foreground">This project has a fully approved run. New runs are disabled.</p>
+              </CardContent>
+            </Card>
+          )}
           {runs.length === 0 ? (
             <Card className="text-center py-8">
               <CardContent>
                 <p className="text-muted-foreground mb-4">No runs yet. Trigger your first AI pipeline run.</p>
-                <Button onClick={triggerRun} disabled={running}>
+                <Button onClick={triggerRun} disabled={running || hasFullyApprovedRun}>
                   <Play className="mr-2 h-4 w-4" />
-                  {running ? RUN_STAGES[runStageIndex] : "Run Pipeline"}
+                  {running ? runStatusText : "Run Pipeline"}
                 </Button>
               </CardContent>
             </Card>
