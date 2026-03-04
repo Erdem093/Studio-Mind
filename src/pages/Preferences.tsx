@@ -62,6 +62,9 @@ export default function Preferences() {
 
   const [modLog, setModLog] = useState<LogItem[]>([]);
   const [feedbackLog, setFeedbackLog] = useState<FeedbackItem[]>([]);
+  const [youtubeChannelId, setYoutubeChannelId] = useState<string | null>(null);
+  const [youtubeConnectedAt, setYoutubeConnectedAt] = useState<string | null>(null);
+  const [youtubeBusy, setYoutubeBusy] = useState<"connect" | "sync" | "inspiration" | null>(null);
 
   const bannedPhrases = useMemo(
     () => bannedPhrasesInput.split(",").map((item) => item.trim()).filter(Boolean),
@@ -75,7 +78,7 @@ export default function Preferences() {
     const [profileResult, prefResult, inspirationResult, modResult, feedbackResult] = await Promise.all([
       supabase
         .from("profiles")
-        .select("channel_style_goal, channel_summary_prompt")
+        .select("channel_style_goal, channel_summary_prompt, youtube_channel_id, youtube_connected_at")
         .eq("user_id", user.id)
         .maybeSingle(),
       supabase
@@ -120,6 +123,8 @@ export default function Preferences() {
 
     setChannelStyleGoal(profileResult.data?.channel_style_goal || "");
     setChannelSummaryPrompt(profileResult.data?.channel_summary_prompt || "");
+    setYoutubeChannelId(profileResult.data?.youtube_channel_id || null);
+    setYoutubeConnectedAt(profileResult.data?.youtube_connected_at || null);
     setTone(prefResult.data?.tone || "clear_confident");
     setPacing(prefResult.data?.pacing || "fast");
     setHookStyle(prefResult.data?.hook_style || "curiosity_with_value");
@@ -286,6 +291,54 @@ export default function Preferences() {
     navigate("/onboarding");
   };
 
+  const connectYoutube = async () => {
+    setYoutubeBusy("connect");
+    const { data, error } = await supabase.functions.invoke("youtube-connect-start", { body: {} });
+    if (error || (data as { error?: string } | null)?.error || !(data as { url?: string } | null)?.url) {
+      toast({
+        title: "YouTube connect failed",
+        description: error?.message || (data as { error?: string } | null)?.error || "No OAuth URL returned",
+        variant: "destructive",
+      });
+      setYoutubeBusy(null);
+      return;
+    }
+    window.location.href = (data as { url: string }).url;
+  };
+
+  const syncYoutubeChannel = async () => {
+    setYoutubeBusy("sync");
+    const { data, error } = await supabase.functions.invoke("youtube-sync-channel", { body: {} });
+    if (error || (data as { error?: string } | null)?.error) {
+      toast({
+        title: "YouTube sync failed",
+        description: error?.message || (data as { error?: string } | null)?.error || "Unknown error",
+        variant: "destructive",
+      });
+      setYoutubeBusy(null);
+      return;
+    }
+    toast({ title: "YouTube synced", description: "Recent video metrics/comments were ingested." });
+    setYoutubeBusy(null);
+    fetchData();
+  };
+
+  const refreshInspirations = async () => {
+    setYoutubeBusy("inspiration");
+    const { data, error } = await supabase.functions.invoke("sync-inspiration-channels", { body: {} });
+    if (error || (data as { error?: string } | null)?.error) {
+      toast({
+        title: "Inspiration refresh failed",
+        description: error?.message || (data as { error?: string } | null)?.error || "Unknown error",
+        variant: "destructive",
+      });
+      setYoutubeBusy(null);
+      return;
+    }
+    toast({ title: "Inspirations refreshed", description: "External inspiration insights were queued and ingested." });
+    setYoutubeBusy(null);
+  };
+
   const mappedFeedback = feedbackLog.map((item) => ({
     id: `feedback-${item.id}`,
     source: "feedback",
@@ -332,6 +385,30 @@ export default function Preferences() {
                 <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
                   {advancedOpen ? "Hide Advanced Settings" : "Advanced Settings"}
                 </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-display">YouTube Intelligence</CardTitle>
+                <CardDescription>Connect and sync your YouTube data for iterative OpenClaw analysis loops.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Status: {youtubeChannelId ? `Connected (${youtubeChannelId})` : "Not connected"}
+                  {youtubeConnectedAt ? ` · ${format(new Date(youtubeConnectedAt), "MMM d, yyyy · h:mm a")}` : ""}
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="outline" onClick={connectYoutube} disabled={youtubeBusy !== null}>
+                    {youtubeBusy === "connect" ? "Connecting..." : youtubeChannelId ? "Reconnect YouTube" : "Connect YouTube"}
+                  </Button>
+                  <Button variant="outline" onClick={syncYoutubeChannel} disabled={youtubeBusy !== null || !youtubeChannelId}>
+                    {youtubeBusy === "sync" ? "Syncing..." : "Sync My Channel"}
+                  </Button>
+                  <Button variant="outline" onClick={refreshInspirations} disabled={youtubeBusy !== null}>
+                    {youtubeBusy === "inspiration" ? "Refreshing..." : "Refresh Inspiration Channels"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

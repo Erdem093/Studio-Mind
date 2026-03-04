@@ -31,6 +31,17 @@ Built for the UK AI Agent Hackathon EP4 with sponsor-track focus on **Anyway** (
   - `queue-youtube-analysis`
   - `openclaw-pull-jobs`
   - `openclaw-push-insights`
+- Pro thumbnail image generation (stored artifact + preview/download)
+- Approved output packaging:
+  - `finalize-approved-output` (JSON + PDF)
+  - `approved_outputs` table + storage package versions
+- YouTube intelligence:
+  - `youtube-connect-start`
+  - `youtube-connect-callback`
+  - `youtube-sync-channel`
+  - `sync-inspiration-channels`
+  - `enqueue-hourly-analysis`
+  - `enqueue-inspiration-refresh`
 - Channel onboarding + preferences baseline:
   - required onboarding gate
   - `complete-onboarding`
@@ -64,6 +75,9 @@ Main tables:
 - `agent_modification_log`
 - `agent_memory`
 - `run_feedback`
+- `analysis_jobs`
+- `external_insights`
+- `approved_outputs`
 
 Notable run fields:
 
@@ -116,6 +130,13 @@ Deployed/used functions:
 - `queue-youtube-analysis`
 - `openclaw-pull-jobs`
 - `openclaw-push-insights`
+- `finalize-approved-output`
+- `youtube-connect-start`
+- `youtube-connect-callback`
+- `youtube-sync-channel`
+- `sync-inspiration-channels`
+- `enqueue-hourly-analysis`
+- `enqueue-inspiration-refresh`
 
 Deploy manually:
 
@@ -133,6 +154,13 @@ supabase functions deploy analyze-approved-artifact
 supabase functions deploy queue-youtube-analysis
 supabase functions deploy openclaw-pull-jobs
 supabase functions deploy openclaw-push-insights
+supabase functions deploy finalize-approved-output
+supabase functions deploy youtube-connect-start
+supabase functions deploy youtube-connect-callback
+supabase functions deploy youtube-sync-channel
+supabase functions deploy sync-inspiration-channels
+supabase functions deploy enqueue-hourly-analysis
+supabase functions deploy enqueue-inspiration-refresh
 ```
 
 ## Required Supabase Function Secrets
@@ -141,6 +169,7 @@ supabase functions deploy openclaw-push-insights
 
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (optional, default `gpt-4.1-mini`)
+- `OPENAI_IMAGE_MODEL` (optional, default `gpt-image-1`)
 
 ### Anyway
 
@@ -158,6 +187,16 @@ supabase functions deploy openclaw-push-insights
 ### OpenClaw Bridge
 
 - `OPENCLAW_SERVICE_TOKEN`
+
+### YouTube OAuth + Ingestion
+
+- `YOUTUBE_CLIENT_ID`
+- `YOUTUBE_CLIENT_SECRET`
+- `YOUTUBE_REDIRECT_URI` (must target `.../functions/v1/youtube-connect-callback`)
+- `YOUTUBE_API_KEY` (for inspiration-channel refresh)
+- `YOUTUBE_OAUTH_STATE_SECRET` (optional; falls back to service key)
+- `APP_ENCRYPTION_KEY` (optional; falls back to service key)
+- `APP_FRONTEND_URL` (optional redirect after OAuth callback)
 
 ## Stripe Connect MVP (Plain Language)
 

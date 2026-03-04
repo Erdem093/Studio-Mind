@@ -42,6 +42,15 @@ interface VideoRow {
   created_at: string;
 }
 
+interface ApprovedOutputRow {
+  id: string;
+  run_id: string;
+  version: number;
+  json_storage_path: string;
+  pdf_storage_path: string;
+  created_at: string;
+}
+
 async function readFunctionErrorMessage(error: unknown): Promise<string> {
   const fallback = error instanceof Error ? error.message : "Unknown error";
   const maybe = error as { context?: { json?: () => Promise<{ error?: string }> } };
@@ -68,17 +77,21 @@ export default function VideoDetail() {
   const [titleSuggestion, setTitleSuggestion] = useState("");
   const [descriptionSuggestion, setDescriptionSuggestion] = useState("");
   const [suggestingTarget, setSuggestingTarget] = useState<"title" | "description" | null>(null);
+  const [approvedOutputs, setApprovedOutputs] = useState<ApprovedOutputRow[]>([]);
+  const [applyingBaseline, setApplyingBaseline] = useState<string | null>(null);
 
   const fetchData = async () => {
     if (!videoId) return;
-    const [{ data: v }, { data: r }] = await Promise.all([
+    const [{ data: v }, { data: r }, { data: outputs }] = await Promise.all([
       supabase.from("videos").select("*").eq("id", videoId).single(),
       supabase.from("runs").select("*").eq("video_id", videoId).order("started_at", { ascending: false }),
+      supabase.from("approved_outputs").select("*").eq("video_id", videoId).order("created_at", { ascending: false }),
     ]);
     setVideo(v);
     setDraftTitle(v?.title || "");
     setDraftDescription(v?.description || "");
     setRuns(r || []);
+    setApprovedOutputs((outputs || []) as ApprovedOutputRow[]);
 
     if (r && r.length > 0) {
       const { data: arts } = await supabase.from("artifacts").select("run_id").in("run_id", r.map((x: any) => x.id));
@@ -87,6 +100,69 @@ export default function VideoDetail() {
       setArtifactCounts(counts);
     }
     setLoading(false);
+  };
+
+  const downloadApprovedFile = async (path: string) => {
+    const { data, error } = await supabase.storage.from("approved-outputs").createSignedUrl(path, 60 * 10);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Download failed", description: error?.message || "No URL generated", variant: "destructive" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
+
+  const useApprovedAsBaseline = async (output: ApprovedOutputRow) => {
+    if (!user || !videoId) return;
+    setApplyingBaseline(output.id);
+
+    const { data: artifacts, error: artifactError } = await supabase
+      .from("artifacts")
+      .select("type, content")
+      .eq("run_id", output.run_id)
+      .eq("approval_status", "approved");
+
+    if (artifactError || !artifacts || artifacts.length === 0) {
+      toast({ title: "Baseline failed", description: artifactError?.message || "No approved artifacts found", variant: "destructive" });
+      setApplyingBaseline(null);
+      return;
+    }
+
+    const baselineText = artifacts
+      .map((artifact) => `${artifact.type.toUpperCase()}: ${(artifact.content || "").replace(/\\s+/g, " ").slice(0, 280)}`)
+      .join("\\n");
+
+    const { error: memoryError } = await supabase.from("agent_memory").insert({
+      user_id: user.id,
+      video_id: videoId,
+      key: "approved_output_baseline_manual",
+      value: {
+        run_id: output.run_id,
+        version: output.version,
+        text: baselineText,
+        set_at: new Date().toISOString(),
+      },
+      source: "manual_pref_edit",
+      agent_name: null,
+      priority: 5,
+    });
+
+    if (memoryError) {
+      toast({ title: "Baseline failed", description: memoryError.message, variant: "destructive" });
+      setApplyingBaseline(null);
+      return;
+    }
+
+    await supabase.from("agent_modification_log").insert({
+      user_id: user.id,
+      video_id: videoId,
+      run_id: output.run_id,
+      source: "manual_pref_edit",
+      change_summary: `Applied approved output v${output.version} as generation baseline`,
+      metadata: { approved_output_id: output.id },
+    });
+
+    toast({ title: "Baseline applied", description: "Next runs will use this approved package context." });
+    setApplyingBaseline(null);
   };
 
   useEffect(() => { fetchData(); }, [videoId]);
@@ -359,6 +435,37 @@ export default function VideoDetail() {
                     </CardContent>
                   </Card>
                 </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <h2 className="text-xl font-display font-semibold mb-4">Approved Outputs</h2>
+          {approvedOutputs.length === 0 ? (
+            <Card>
+              <CardContent className="py-6">
+                <p className="text-sm text-muted-foreground">No finalized outputs yet. Finalize from Run Detail after approvals.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {approvedOutputs.map((output) => (
+                <Card key={output.id}>
+                  <CardContent className="py-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-sm">Approved Package v{output.version}</p>
+                      <p className="text-xs text-muted-foreground">{format(new Date(output.created_at), "MMM d, yyyy · h:mm a")}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => downloadApprovedFile(output.json_storage_path)}>JSON</Button>
+                      <Button size="sm" variant="outline" onClick={() => downloadApprovedFile(output.pdf_storage_path)}>PDF</Button>
+                      <Button size="sm" onClick={() => useApprovedAsBaseline(output)} disabled={applyingBaseline === output.id}>
+                        {applyingBaseline === output.id ? "Applying..." : "Use As Baseline"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}

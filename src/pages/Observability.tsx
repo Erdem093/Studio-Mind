@@ -43,16 +43,47 @@ interface RunRow {
   } | null;
 }
 
+interface AnalysisJob {
+  id: string;
+  status: string;
+  source: string;
+  job_type: string;
+  run_after: string;
+  attempt_count: number;
+  last_error: string | null;
+  created_at: string;
+}
+
 export default function Observability() {
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [jobs, setJobs] = useState<AnalysisJob[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from("runs").select("*").order("started_at", { ascending: false }).limit(50).then(({ data }) => {
-      setRuns((data || []) as RunRow[]);
+    Promise.all([
+      supabase.from("runs").select("*").order("started_at", { ascending: false }).limit(50),
+      supabase.from("analysis_jobs").select("id,status,source,job_type,run_after,attempt_count,last_error,created_at").order("created_at", { ascending: false }).limit(25),
+    ]).then(([runRes, jobRes]) => {
+      setRuns((runRes.data || []) as RunRow[]);
+      setJobs((jobRes.data || []) as AnalysisJob[]);
       setLoading(false);
     });
   }, []);
+
+  const retryJob = async (jobId: string) => {
+    const { error } = await supabase
+      .from("analysis_jobs")
+      .update({
+        status: "pending",
+        run_after: new Date().toISOString(),
+        last_error: null,
+      })
+      .eq("id", jobId);
+
+    if (!error) {
+      setJobs((prev) => prev.map((job) => (job.id === jobId ? { ...job, status: "pending", last_error: null } : job)));
+    }
+  };
 
   const totalCost = runs.reduce((sum, run) => sum + (Number(run.cost_usd) || 0), 0);
   const totalTokens = runs.reduce((sum, run) => sum + (run.cost_tokens || 0), 0);
@@ -167,6 +198,15 @@ export default function Observability() {
                                 )}
                               </span>
                             )}
+                            {Array.isArray(run.memory_applied) && (
+                              <span className="text-xs text-muted-foreground">
+                                External insights:{" "}
+                                {run.memory_applied.reduce(
+                                  (sum, item) => sum + (Array.isArray((item as any).external_insight_ids) ? (item as any).external_insight_ids.length : 0),
+                                  0,
+                                )}
+                              </span>
+                            )}
                             {failedCount > 0 && <span className="text-xs text-destructive">{failedCount} failed</span>}
                           </div>
                         </div>
@@ -215,6 +255,42 @@ export default function Observability() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display">OpenClaw Analysis Jobs</CardTitle>
+            <CardDescription>Failed/dead-letter jobs can be retried manually.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {jobs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No analysis jobs yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {jobs.map((job) => (
+                  <div key={job.id} className="rounded-md border p-3 flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{job.job_type} · {job.source}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(job.created_at), "MMM d, yyyy · h:mm a")} · attempts {job.attempt_count}
+                      </p>
+                      {job.last_error && <p className="text-xs text-destructive mt-1">{job.last_error}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={job.status === "completed" ? "default" : job.status === "dead_letter" ? "destructive" : "secondary"}>
+                        {job.status}
+                      </Badge>
+                      {(job.status === "dead_letter" || job.status === "failed") && (
+                        <button className="text-xs text-primary underline" onClick={() => retryJob(job.id)}>
+                          Retry
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>

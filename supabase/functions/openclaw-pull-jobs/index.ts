@@ -24,8 +24,9 @@ Deno.serve(async (req) => {
 
   const { data: jobs, error: jobsError } = await adminClient
     .from("analysis_jobs")
-    .select("id, user_id, video_id, source, payload, status, created_at")
+    .select("id, user_id, video_id, source, payload, status, created_at, job_type, run_after, attempt_count, last_error")
     .eq("status", "pending")
+    .lte("run_after", new Date().toISOString())
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -39,6 +40,7 @@ Deno.serve(async (req) => {
     .update({
       status: "processing",
       worker_id: workerId,
+      last_error: null,
       updated_at: new Date().toISOString(),
     })
     .in("id", ids);

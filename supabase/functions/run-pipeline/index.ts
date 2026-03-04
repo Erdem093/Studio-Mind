@@ -2,11 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 
 const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") ?? "gpt-4.1-mini";
+const OPENAI_IMAGE_MODEL = Deno.env.get("OPENAI_IMAGE_MODEL") ?? "gpt-image-1";
 const AGENT_VERSION = "v2";
 const SERVICE_NAME = "studio-mind-run-pipeline";
 
 type AgentName = "HookAgent" | "ScriptAgent" | "TitleAgent" | "StrategyAgent";
-type ArtifactType = "hook" | "script" | "title" | "strategy";
+type ArtifactType = "hook" | "script" | "title" | "strategy" | "thumbnail";
 
 type AgentDefinition = {
   name: AgentName;
@@ -32,6 +33,7 @@ type AgentOutput = {
   completionTokens: number;
   totalTokens: number;
   promptText: string;
+  rawJson: Record<string, unknown>;
 };
 
 type AgentExecutionMetrics = {
@@ -86,6 +88,15 @@ type CompiledMemory = {
   constraintsText: string;
   appliedMemoryRows: Array<{ id: string; key: string; priority: number }>;
   appliedFeedbackRows: Array<{ id: string; reason_code: string; feedback_weight: number }>;
+};
+
+type ExternalInsightRow = {
+  id: string;
+  source: string;
+  insight_type: string;
+  insights: Array<Record<string, unknown>>;
+  raw_summary: string | null;
+  created_at: string;
 };
 
 type ExportResult = {
@@ -431,7 +442,7 @@ async function loadChannelBaseline(
       .maybeSingle(),
     adminClient
       .from("channel_inspirations")
-      .select("youtube_url, note, label")
+      .select("youtube_url, note")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(8),
@@ -449,7 +460,7 @@ async function loadChannelBaseline(
     `CTA style: ${preference?.cta_style ?? "not set"}`,
     `Notes: ${preference?.notes ?? "none"}`,
     `Inspirations: ${(inspirations || []).length > 0
-      ? (inspirations || []).map((item) => `${item.youtube_url}${item.note ? ` (${item.note})` : ""}${item.label ? ` [${item.label}]` : ""}`).join("; ")
+      ? (inspirations || []).map((item) => `${item.youtube_url}${item.note ? ` (${item.note})` : ""}`).join("; ")
       : "none"}`,
   ];
 
@@ -482,6 +493,109 @@ function formatTitleAgentContent(parsed: Record<string, unknown>, isPro: boolean
   }
 
   return lines.join("\n\n");
+}
+
+function extractTitleImagePrompt(parsed: Record<string, unknown>): string | null {
+  if (typeof parsed.image_prompt === "string" && parsed.image_prompt.trim()) {
+    return parsed.image_prompt.trim();
+  }
+  return null;
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function generateThumbnail(
+  openAiApiKey: string,
+  prompt: string,
+): Promise<{ bytes: Uint8Array; model: string; prompt: string }> {
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openAiApiKey}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_IMAGE_MODEL,
+      prompt,
+      size: "1024x1024",
+      response_format: "b64_json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Thumbnail generation failed: ${await response.text()}`);
+  }
+
+  const json = await response.json() as { data?: Array<{ b64_json?: string }> };
+  const b64 = json.data?.[0]?.b64_json;
+  if (!b64) throw new Error("Thumbnail generation returned empty image payload");
+
+  return {
+    bytes: base64ToBytes(b64),
+    model: OPENAI_IMAGE_MODEL,
+    prompt,
+  };
+}
+
+async function loadExternalInsights(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  videoId: string,
+): Promise<ExternalInsightRow[]> {
+  const { data } = await adminClient
+    .from("external_insights")
+    .select("id, source, insight_type, insights, raw_summary, created_at")
+    .eq("user_id", userId)
+    .or(`video_id.eq.${videoId},video_id.is.null`)
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  return ((data || []) as unknown[]).map((item) => {
+    const row = item as Record<string, unknown>;
+    return {
+      id: String(row.id),
+      source: String(row.source || "external"),
+      insight_type: String(row.insight_type || "external"),
+      insights: Array.isArray(row.insights) ? (row.insights as Array<Record<string, unknown>>) : [],
+      raw_summary: (row.raw_summary as string | null) ?? null,
+      created_at: String(row.created_at ?? new Date(0).toISOString()),
+    };
+  });
+}
+
+async function loadApprovedBaseline(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+  videoId: string,
+): Promise<string> {
+  const { data: approved } = await adminClient
+    .from("approved_outputs")
+    .select("run_id, version, created_at")
+    .eq("user_id", userId)
+    .eq("video_id", videoId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!approved?.run_id) return "No prior approved output baseline.";
+
+  const { data: artifacts } = await adminClient
+    .from("artifacts")
+    .select("type, content")
+    .eq("run_id", approved.run_id)
+    .eq("approval_status", "approved");
+
+  const summary = (artifacts || [])
+    .map((item) => `${item.type}: ${(item.content || "").replace(/\s+/g, " ").slice(0, 180)}`)
+    .join("\n");
+
+  if (!summary) return "No prior approved output baseline.";
+  return `Latest approved output baseline (v${approved.version}):\n${summary}`;
 }
 
 async function callAgent(
@@ -558,6 +672,7 @@ async function callAgent(
     completionTokens: Number(json?.usage?.completion_tokens ?? 0),
     totalTokens: Number(json?.usage?.total_tokens ?? 0),
     promptText: userPrompt,
+    rawJson: parsed,
   };
 }
 
@@ -605,7 +720,7 @@ function countWords(content: string): number {
 }
 
 function computeQualityDelta(
-  artifacts: Array<{ type: ArtifactType; content: string }>,
+  artifacts: Array<{ type: string; content: string }>,
   previousScore: number | null,
 ): Record<string, unknown> {
   const hook = artifacts.find((item) => item.type === "hook")?.content ?? "";
@@ -712,6 +827,8 @@ Deno.serve(async (req) => {
 
   let compiledMemoryMap: Record<AgentName, CompiledMemory> | null = null;
   let channelBaseline: ChannelBaseline | null = null;
+  let externalInsights: ExternalInsightRow[] = [];
+  let approvedBaselineText = "No prior approved output baseline.";
   let collectorStatus: ExportResult = { status: "skipped", error: null };
 
   try {
@@ -734,14 +851,32 @@ Deno.serve(async (req) => {
 
     runId = run.id;
 
-    compiledMemoryMap = await loadCompiledMemory(adminClient, user.id, video.id);
-    channelBaseline = await loadChannelBaseline(adminClient, user.id);
+    [compiledMemoryMap, channelBaseline, externalInsights, approvedBaselineText] = await Promise.all([
+      loadCompiledMemory(adminClient, user.id, video.id),
+      loadChannelBaseline(adminClient, user.id),
+      loadExternalInsights(adminClient, user.id, video.id),
+      loadApprovedBaseline(adminClient, user.id, video.id),
+    ]);
+
+    const externalInsightText = externalInsights.length > 0
+      ? externalInsights
+        .slice(0, 8)
+        .map((row) => {
+          const top = row.insights?.[0] as Record<string, unknown> | undefined;
+          const key = typeof top?.key === "string" ? top.key : row.insight_type;
+          const value = typeof top?.value === "string" ? top.value : row.raw_summary ?? "n/a";
+          return `${row.source}/${row.insight_type}: ${key} -> ${value}`;
+        })
+        .join("\n")
+      : "No external insights.";
 
     const memoryApplied = AGENTS.map((agent) => ({
       agent: agent.name,
       memory_rows: compiledMemoryMap?.[agent.name].appliedMemoryRows ?? [],
       feedback_rows: compiledMemoryMap?.[agent.name].appliedFeedbackRows ?? [],
       channel_baseline: channelBaseline?.applied ?? {},
+      external_insight_ids: externalInsights.map((insight) => insight.id),
+      approved_output_baseline: approvedBaselineText,
     }));
 
     const context: RunContext = {
@@ -752,10 +887,21 @@ Deno.serve(async (req) => {
       description: video.description,
       isPro,
       memoryByAgent: compiledMemoryMap,
-      channelBaselineText: channelBaseline.text,
+      channelBaselineText: `${channelBaseline.text}\n\nEXTERNAL INSIGHTS\n${externalInsightText}\n\nAPPROVED BASELINE\n${approvedBaselineText}`,
     };
 
-    const artifactRows: Array<{ run_id: string; user_id: string; type: ArtifactType; content: string; agent_name: string; agent_version: string }> = [];
+    const artifactRows: Array<{
+      run_id: string;
+      user_id: string;
+      type: string;
+      content: string;
+      agent_name: string;
+      agent_version: string;
+      storage_path?: string | null;
+      mime_type?: string | null;
+      metadata?: Record<string, unknown>;
+    }> = [];
+    let titleImagePrompt: string | null = null;
 
     for (const agent of AGENTS) {
       const spanId = randomHex(8);
@@ -775,6 +921,9 @@ Deno.serve(async (req) => {
           agent_name: agent.name,
           agent_version: AGENT_VERSION,
         });
+        if (agent.name === "TitleAgent") {
+          titleImagePrompt = extractTitleImagePrompt(result.rawJson);
+        }
 
         const metric: AgentExecutionMetrics = {
           agent_name: agent.name,
@@ -847,6 +996,97 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (isPro && titleImagePrompt) {
+      const thumbSpanId = randomHex(8);
+      const thumbSpanStart = nowNano();
+      const thumbPerfStart = Date.now();
+      try {
+        const thumbnail = await generateThumbnail(openAiApiKey, titleImagePrompt);
+        const storagePath = `${user.id}/${runId}/thumbnail.png`;
+        const upload = await adminClient.storage.from("thumbnails").upload(storagePath, thumbnail.bytes, {
+          contentType: "image/png",
+          upsert: true,
+        });
+
+        if (upload.error) {
+          throw new Error(upload.error.message);
+        }
+
+        artifactRows.push({
+          run_id: runId,
+          user_id: user.id,
+          type: "thumbnail",
+          content: "Generated thumbnail image",
+          agent_name: "TitleAgent",
+          agent_version: AGENT_VERSION,
+          storage_path: storagePath,
+          mime_type: "image/png",
+          metadata: {
+            prompt: thumbnail.prompt,
+            model: thumbnail.model,
+            size: "1024x1024",
+          },
+        });
+
+        metrics.push({
+          agent_name: "TitleAgent",
+          artifact_type: "thumbnail",
+          latency_ms: Date.now() - thumbPerfStart,
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          cost_usd: 0,
+          status: "completed",
+          error_message: null,
+          prompt_text: `THUMBNAIL_PROMPT\n${titleImagePrompt}`,
+        });
+
+        spanRecords.push({
+          spanId: thumbSpanId,
+          parentSpanId: rootSpanId,
+          name: "TitleAgent.thumbnail",
+          startTimeUnixNano: thumbSpanStart,
+          endTimeUnixNano: nowNano(),
+          statusCode: 1,
+          attributes: [
+            spanAttrString("studio.agent_name", "TitleAgent"),
+            spanAttrString("studio.artifact_type", "thumbnail"),
+            spanAttrString("llm.model", thumbnail.model),
+            spanAttrInt("studio.latency_ms", Date.now() - thumbPerfStart),
+          ],
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Thumbnail generation failed";
+        metrics.push({
+          agent_name: "TitleAgent",
+          artifact_type: "thumbnail",
+          latency_ms: Date.now() - thumbPerfStart,
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+          cost_usd: 0,
+          status: "failed",
+          error_message: message,
+          prompt_text: `THUMBNAIL_PROMPT\n${titleImagePrompt}`,
+        });
+
+        spanRecords.push({
+          spanId: thumbSpanId,
+          parentSpanId: rootSpanId,
+          name: "TitleAgent.thumbnail",
+          startTimeUnixNano: thumbSpanStart,
+          endTimeUnixNano: nowNano(),
+          statusCode: 2,
+          statusMessage: message,
+          attributes: [
+            spanAttrString("studio.agent_name", "TitleAgent"),
+            spanAttrString("studio.artifact_type", "thumbnail"),
+            spanAttrString("error.message", message),
+          ],
+        });
+      }
+    }
+
     const { error: artifactError } = await adminClient.from("artifacts").insert(artifactRows);
     if (artifactError) {
       throw new Error(`Artifact insert failed: ${artifactError.message}`);
@@ -902,6 +1142,13 @@ Deno.serve(async (req) => {
         .from("agent_memory")
         .update({ last_applied_at: new Date().toISOString() })
         .in("id", appliedMemoryIds);
+    }
+
+    if (externalInsights.length > 0) {
+      await adminClient
+        .from("external_insights")
+        .update({ applied_to_memory: true })
+        .in("id", externalInsights.map((item) => item.id));
     }
 
     spanRecords.push({
@@ -992,6 +1239,8 @@ Deno.serve(async (req) => {
               memory_rows: compiledMemoryMap?.[agent.name].appliedMemoryRows ?? [],
               feedback_rows: compiledMemoryMap?.[agent.name].appliedFeedbackRows ?? [],
               channel_baseline: channelBaseline?.applied ?? {},
+              external_insight_ids: externalInsights.map((insight) => insight.id),
+              approved_output_baseline: approvedBaselineText,
             }))
             : null,
           collector_export_status: collectorStatus.status,

@@ -35,3 +35,24 @@ verify_jwt = false
 
 [functions.openclaw-push-insights]
 verify_jwt = false
+
+[functions.finalize-approved-output]
+verify_jwt = false
+
+[functions.youtube-connect-start]
+verify_jwt = false
+
+[functions.youtube-connect-callback]
+verify_jwt = false
+
+[functions.youtube-sync-channel]
+verify_jwt = false
+
+[functions.sync-inspiration-channels]
+verify_jwt = false
+
+[functions.enqueue-hourly-analysis]
+verify_jwt = false
+
+[functions.enqueue-inspiration-refresh]
+verify_jwt = false

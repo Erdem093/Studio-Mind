@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Check, MessageSquareWarning, X } from "lucide-react";
+import { ArrowLeft, Check, Download, FileArchive, MessageSquareWarning, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,9 @@ interface ArtifactRow {
   created_at: string;
   agent_name: string | null;
   agent_version: string | null;
+  storage_path?: string | null;
+  mime_type?: string | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 interface RunRow {
@@ -31,6 +34,7 @@ interface RunRow {
   cost_tokens: number | null;
   cost_usd: number | null;
   started_at: string;
+  completed_at: string | null;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -38,6 +42,7 @@ const TYPE_LABELS: Record<string, string> = {
   script: "Script Draft",
   hook: "Hook Options",
   title: "Title & Thumbnail",
+  thumbnail: "Thumbnail",
   story: "Story Structure",
 };
 
@@ -63,6 +68,8 @@ export default function RunDetail() {
   const [limitToVideo, setLimitToVideo] = useState(false);
   const [rejectingArtifactId, setRejectingArtifactId] = useState<string | null>(null);
   const [advancedFeedbackOpen, setAdvancedFeedbackOpen] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizedLinks, setFinalizedLinks] = useState<{ jsonUrl: string | null; pdfUrl: string | null } | null>(null);
 
   const fetchData = async () => {
     if (!runId) return;
@@ -173,6 +180,35 @@ export default function RunDetail() {
     toast({ title: "Memory improved", description: "Approved artifact patterns were added to channel memory." });
   };
 
+  const finalizeApprovedOutput = async () => {
+    if (!runId) return;
+    setFinalizing(true);
+    const { data, error } = await supabase.functions.invoke("finalize-approved-output", {
+      body: { runId },
+    });
+
+    if (error || (data as { error?: string } | null)?.error) {
+      toast({
+        title: "Finalize failed",
+        description: error?.message || (data as { error?: string } | null)?.error || "Unknown error",
+        variant: "destructive",
+      });
+      setFinalizing(false);
+      return;
+    }
+
+    const payload = data as { jsonUrl?: string | null; pdfUrl?: string | null };
+    setFinalizedLinks({ jsonUrl: payload.jsonUrl || null, pdfUrl: payload.pdfUrl || null });
+    toast({ title: "Approved output finalized", description: "JSON and PDF package generated." });
+    setFinalizing(false);
+  };
+
+  const getThumbnailUrl = (artifact: ArtifactRow): string | null => {
+    if (!artifact.storage_path) return null;
+    const { data } = supabase.storage.from("thumbnails").getPublicUrl(artifact.storage_path);
+    return data.publicUrl || null;
+  };
+
   const statusBadge = (status: string) => {
     if (status === "approved") return <Badge className="bg-success text-success-foreground">Approved</Badge>;
     if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>;
@@ -204,6 +240,12 @@ export default function RunDetail() {
     return acc;
   }, {} as Record<string, ArtifactRow[]>);
 
+  const requiredTypes = ["hook", "script", "title", "strategy"];
+  const approvedTypes = new Set(
+    artifacts.filter((artifact) => artifact.approval_status === "approved").map((artifact) => artifact.type),
+  );
+  const canFinalize = requiredTypes.every((type) => approvedTypes.has(type));
+
   return (
     <AppLayout>
       <div className="max-w-4xl mx-auto space-y-6">
@@ -220,7 +262,36 @@ export default function RunDetail() {
               {run.cost_usd && <span>${Number(run.cost_usd).toFixed(4)}</span>}
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={finalizeApprovedOutput} disabled={!canFinalize || finalizing}>
+              <FileArchive className="mr-2 h-4 w-4" />
+              {finalizing ? "Finalizing..." : "Finalize Output"}
+            </Button>
+          </div>
         </div>
+
+        {finalizedLinks && (
+          <Card>
+            <CardContent className="pt-5 flex items-center gap-2">
+              {finalizedLinks.jsonUrl && (
+                <Button asChild variant="outline">
+                  <a href={finalizedLinks.jsonUrl} target="_blank" rel="noreferrer">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download JSON
+                  </a>
+                </Button>
+              )}
+              {finalizedLinks.pdfUrl && (
+                <Button asChild variant="outline">
+                  <a href={finalizedLinks.pdfUrl} target="_blank" rel="noreferrer">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </a>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {Object.entries(grouped).map(([type, arts]) => (
           <div key={type}>
@@ -270,6 +341,21 @@ export default function RunDetail() {
                       )}
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{art.content || "No content"}</p>
+                    {art.type === "thumbnail" && (
+                      <div className="mt-3 space-y-2">
+                        {getThumbnailUrl(art) && (
+                          <img src={getThumbnailUrl(art) || ""} alt="Generated thumbnail" className="w-full max-w-md rounded-md border" />
+                        )}
+                        {getThumbnailUrl(art) && (
+                          <Button asChild size="sm" variant="outline">
+                            <a href={getThumbnailUrl(art) || "#"} target="_blank" rel="noreferrer">
+                              <Download className="mr-2 h-4 w-4" />
+                              Download Thumbnail
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}

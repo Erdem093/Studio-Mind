@@ -65,7 +65,9 @@ Deno.serve(async (req) => {
       user_id: user.id,
       video_id: videoId,
       source: "youtube",
+      job_type: "video_performance",
       status: "pending",
+      run_after: new Date().toISOString(),
       payload,
     })
     .select("id, status, source, created_at")

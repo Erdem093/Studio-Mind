@@ -23,7 +23,10 @@ export type Database = {
           content: string | null
           created_at: string
           id: string
+          metadata: Json
+          mime_type: string | null
           run_id: string
+          storage_path: string | null
           type: string
           user_id: string
         }
@@ -35,7 +38,10 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
+          metadata?: Json
+          mime_type?: string | null
           run_id: string
+          storage_path?: string | null
           type: string
           user_id: string
         }
@@ -47,7 +53,10 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
+          metadata?: Json
+          mime_type?: string | null
           run_id?: string
+          storage_path?: string | null
           type?: string
           user_id?: string
         }
@@ -63,9 +72,13 @@ export type Database = {
       }
       analysis_jobs: {
         Row: {
+          attempt_count: number
           created_at: string
           id: string
+          job_type: string
+          last_error: string | null
           payload: Json
+          run_after: string
           source: string
           status: string
           updated_at: string
@@ -74,9 +87,13 @@ export type Database = {
           worker_id: string | null
         }
         Insert: {
+          attempt_count?: number
           created_at?: string
           id?: string
+          job_type?: string
+          last_error?: string | null
           payload?: Json
+          run_after?: string
           source: string
           status?: string
           updated_at?: string
@@ -85,9 +102,13 @@ export type Database = {
           worker_id?: string | null
         }
         Update: {
+          attempt_count?: number
           created_at?: string
           id?: string
+          job_type?: string
+          last_error?: string | null
           payload?: Json
+          run_after?: string
           source?: string
           status?: string
           updated_at?: string
@@ -203,6 +224,54 @@ export type Database = {
           },
         ]
       }
+      approved_outputs: {
+        Row: {
+          created_at: string
+          id: string
+          json_storage_path: string
+          pdf_storage_path: string
+          run_id: string
+          user_id: string
+          version: number
+          video_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          json_storage_path: string
+          pdf_storage_path: string
+          run_id: string
+          user_id: string
+          version?: number
+          video_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          json_storage_path?: string
+          pdf_storage_path?: string
+          run_id?: string
+          user_id?: string
+          version?: number
+          video_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approved_outputs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approved_outputs_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_inspirations: {
         Row: {
           created_at: string
@@ -286,8 +355,11 @@ export type Database = {
           subscription_status: string | null
           updated_at: string
           user_id: string
+          youtube_access_token_enc: string | null
           youtube_channel_id: string | null
           youtube_connected_at: string | null
+          youtube_refresh_token_enc: string | null
+          youtube_token_expires_at: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -305,8 +377,11 @@ export type Database = {
           subscription_status?: string | null
           updated_at?: string
           user_id: string
+          youtube_access_token_enc?: string | null
           youtube_channel_id?: string | null
           youtube_connected_at?: string | null
+          youtube_refresh_token_enc?: string | null
+          youtube_token_expires_at?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -324,8 +399,11 @@ export type Database = {
           subscription_status?: string | null
           updated_at?: string
           user_id?: string
+          youtube_access_token_enc?: string | null
           youtube_channel_id?: string | null
           youtube_connected_at?: string | null
+          youtube_refresh_token_enc?: string | null
+          youtube_token_expires_at?: string | null
         }
         Relationships: []
       }
@@ -463,28 +541,37 @@ export type Database = {
       }
       external_insights: {
         Row: {
+          applied_to_memory: boolean
           created_at: string
           id: string
+          insight_type: string
           insights: Json
           raw_summary: string | null
+          score: number | null
           source: string
           user_id: string
           video_id: string | null
         }
         Insert: {
+          applied_to_memory?: boolean
           created_at?: string
           id?: string
+          insight_type?: string
           insights?: Json
           raw_summary?: string | null
+          score?: number | null
           source: string
           user_id: string
           video_id?: string | null
         }
         Update: {
+          applied_to_memory?: boolean
           created_at?: string
           id?: string
+          insight_type?: string
           insights?: Json
           raw_summary?: string | null
+          score?: number | null
           source?: string
           user_id?: string
           video_id?: string | null
@@ -504,28 +591,37 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          latest_youtube_sync_at: string | null
           status: string
           title: string
           updated_at: string
           user_id: string
+          youtube_published_at: string | null
+          youtube_video_id: string | null
         }
         Insert: {
           created_at?: string
           description?: string | null
           id?: string
+          latest_youtube_sync_at?: string | null
           status?: string
           title: string
           updated_at?: string
           user_id: string
+          youtube_published_at?: string | null
+          youtube_video_id?: string | null
         }
         Update: {
           created_at?: string
           description?: string | null
           id?: string
+          latest_youtube_sync_at?: string | null
           status?: string
           title?: string
           updated_at?: string
           user_id?: string
+          youtube_published_at?: string | null
+          youtube_video_id?: string | null
         }
         Relationships: []
       }

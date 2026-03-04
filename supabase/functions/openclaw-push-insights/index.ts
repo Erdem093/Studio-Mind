@@ -7,6 +7,7 @@ type InsightInput = {
   priority?: number;
   agentName?: string | null;
   appliesGlobally?: boolean;
+  score?: number;
 };
 
 function isAuthorized(req: Request): boolean {
@@ -31,14 +32,17 @@ Deno.serve(async (req) => {
     userId?: string;
     videoId?: string;
     source?: string;
+    insightType?: string;
     rawSummary?: string;
     insights?: InsightInput[];
     status?: "completed" | "failed";
     errorMessage?: string;
+    score?: number;
   } | null;
 
   const userId = body?.userId?.trim();
   const source = body?.source?.trim() || "openclaw";
+  const insightType = body?.insightType?.trim() || "youtube_performance";
   const videoId = body?.videoId?.trim() || null;
   const jobId = body?.jobId?.trim();
   const rawSummary = body?.rawSummary?.trim() || null;
@@ -53,6 +57,7 @@ Deno.serve(async (req) => {
       key: insight.key.trim(),
       value: insight.value.trim(),
       priority: Math.max(1, Number(insight.priority ?? 1)),
+      score: Number(insight.score ?? body?.score ?? 0),
       agent_name: insight.agentName ?? null,
       applies_globally: Boolean(insight.appliesGlobally),
     }));
@@ -77,29 +82,75 @@ Deno.serve(async (req) => {
     if (memoryError) return jsonResponse(500, { error: memoryError.message });
   }
 
-  const { error: insightError } = await adminClient.from("external_insights").insert({
+  const { data: insertedInsight, error: insightError } = await adminClient.from("external_insights").insert({
     user_id: userId,
     video_id: videoId,
     source,
+    insight_type: insightType,
+    score: Number(body?.score ?? normalizedInsights[0]?.score ?? 0) || null,
     insights: normalizedInsights,
     raw_summary: rawSummary,
-  });
+    applied_to_memory: normalizedInsights.length > 0,
+  }).select("id").maybeSingle();
 
   if (insightError) return jsonResponse(500, { error: insightError.message });
 
+  if (normalizedInsights.length > 0) {
+    await adminClient.from("agent_modification_log").insert({
+      user_id: userId,
+      video_id: videoId,
+      source: "external_insight",
+      change_summary: `Applied ${normalizedInsights.length} external insight(s) from ${source}`,
+      metadata: {
+        insight_type: insightType,
+        external_insight_id: insertedInsight?.id ?? null,
+      },
+    });
+  }
+
   if (jobId) {
-    await adminClient
-      .from("analysis_jobs")
-      .update({
-        status,
-        payload: {
-          processed_at: new Date().toISOString(),
-          insight_count: normalizedInsights.length,
-          error: body?.errorMessage ?? null,
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", jobId);
+    if (status === "failed") {
+      const { data: job } = await adminClient
+        .from("analysis_jobs")
+        .select("attempt_count")
+        .eq("id", jobId)
+        .maybeSingle();
+
+      const nextAttempt = Number(job?.attempt_count ?? 0) + 1;
+      const deadLetter = nextAttempt >= 5;
+      const backoffMinutes = Math.min(60, Math.max(5, nextAttempt * 5));
+      const runAfter = new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
+
+      await adminClient
+        .from("analysis_jobs")
+        .update({
+          status: deadLetter ? "dead_letter" : "pending",
+          attempt_count: nextAttempt,
+          last_error: body?.errorMessage ?? "Worker marked as failed",
+          run_after: runAfter,
+          payload: {
+            processed_at: new Date().toISOString(),
+            insight_count: normalizedInsights.length,
+            error: body?.errorMessage ?? null,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+    } else {
+      await adminClient
+        .from("analysis_jobs")
+        .update({
+          status: "completed",
+          last_error: null,
+          payload: {
+            processed_at: new Date().toISOString(),
+            insight_count: normalizedInsights.length,
+            error: null,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+    }
   }
 
   return jsonResponse(200, { success: true, insightCount: normalizedInsights.length });
