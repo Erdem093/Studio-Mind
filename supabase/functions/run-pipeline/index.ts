@@ -523,7 +523,6 @@ async function generateThumbnail(
       model: OPENAI_IMAGE_MODEL,
       prompt,
       size: "1024x1024",
-      response_format: "b64_json",
     }),
   });
 
@@ -531,12 +530,25 @@ async function generateThumbnail(
     throw new Error(`Thumbnail generation failed: ${await response.text()}`);
   }
 
-  const json = await response.json() as { data?: Array<{ b64_json?: string }> };
-  const b64 = json.data?.[0]?.b64_json;
-  if (!b64) throw new Error("Thumbnail generation returned empty image payload");
+  const json = await response.json() as { data?: Array<{ b64_json?: string; url?: string }> };
+  const first = json.data?.[0];
+  if (!first) throw new Error("Thumbnail generation returned empty image payload");
+
+  let bytes: Uint8Array | null = null;
+  if (first.b64_json) {
+    bytes = base64ToBytes(first.b64_json);
+  } else if (first.url) {
+    const imageResponse = await fetch(first.url);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch generated image: ${imageResponse.status}`);
+    }
+    bytes = new Uint8Array(await imageResponse.arrayBuffer());
+  }
+
+  if (!bytes) throw new Error("Thumbnail generation did not include b64_json or url");
 
   return {
-    bytes: base64ToBytes(b64),
+    bytes,
     model: OPENAI_IMAGE_MODEL,
     prompt,
   };
