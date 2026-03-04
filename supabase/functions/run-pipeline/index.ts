@@ -932,6 +932,9 @@ Deno.serve(async (req) => {
           content: result.content,
           agent_name: agent.name,
           agent_version: AGENT_VERSION,
+          storage_path: null,
+          mime_type: null,
+          metadata: {},
         });
         if (agent.name === "TitleAgent") {
           titleImagePrompt = extractTitleImagePrompt(result.rawJson);
