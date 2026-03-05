@@ -117,107 +117,107 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
-      <div className="max-w-6xl mx-auto space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Your content projects at a glance</p>
-          </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" />New Video</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Create Video Project</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Title</Label>
-                    <Button variant="outline" size="sm" onClick={() => suggestCopy("title")} disabled={suggestingTarget !== null}>
-                      <Wand2 className="mr-2 h-3.5 w-3.5" />
-                      {suggestingTarget === "title" ? "Suggesting..." : "Suggest Title"}
-                    </Button>
-                  </div>
-                  <Input placeholder="e.g. I tried to learn guitar in 24 hours" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
-                  {titleSuggestion && (
-                    <div className="rounded-md border p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground mb-1">Suggested Title</p>
-                      <p className="text-sm">{titleSuggestion}</p>
-                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setNewTitle(titleSuggestion)}>Apply</Button>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <Card className="glass-card">
+          <CardContent className="pt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-display font-bold">Dashboard</h1>
+              <p className="text-slate-500 mt-1">Create, run, and iterate every content project from one workspace.</p>
+            </div>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button><Plus className="mr-2 h-4 w-4" />New Video</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Create Video Project</DialogTitle></DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Title</Label>
+                      <Button variant="outline" size="sm" onClick={() => suggestCopy("title")} disabled={suggestingTarget !== null}>
+                        <Wand2 className="mr-2 h-3.5 w-3.5" />
+                        {suggestingTarget === "title" ? "Suggesting..." : "Suggest Title"}
+                      </Button>
                     </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Idea / Description</Label>
-                    <Button variant="outline" size="sm" onClick={() => suggestCopy("description")} disabled={suggestingTarget !== null}>
-                      <Wand2 className="mr-2 h-3.5 w-3.5" />
-                      {suggestingTarget === "description" ? "Suggesting..." : "Suggest Description"}
-                    </Button>
+                    <Input placeholder="e.g. I tried to learn guitar in 24 hours" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                    {titleSuggestion && (
+                      <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+                        <p className="text-xs text-slate-500 mb-1">Suggested Title</p>
+                        <p className="text-sm text-slate-800">{titleSuggestion}</p>
+                        <Button size="sm" variant="secondary" className="mt-2" onClick={() => setNewTitle(titleSuggestion)}>Apply</Button>
+                      </div>
+                    )}
                   </div>
-                  <Textarea placeholder="Describe your video concept..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
-                  {descriptionSuggestion && (
-                    <div className="rounded-md border p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground mb-1">Suggested Description</p>
-                      <p className="text-sm whitespace-pre-wrap">{descriptionSuggestion}</p>
-                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setNewDesc(descriptionSuggestion)}>Apply</Button>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Idea / Description</Label>
+                      <Button variant="outline" size="sm" onClick={() => suggestCopy("description")} disabled={suggestingTarget !== null}>
+                        <Wand2 className="mr-2 h-3.5 w-3.5" />
+                        {suggestingTarget === "description" ? "Suggesting..." : "Suggest Description"}
+                      </Button>
                     </div>
-                  )}
+                    <Textarea placeholder="Describe your video concept..." value={newDesc} onChange={e => setNewDesc(e.target.value)} />
+                    {descriptionSuggestion && (
+                      <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+                        <p className="text-xs text-slate-500 mb-1">Suggested Description</p>
+                        <p className="text-sm whitespace-pre-wrap text-slate-800">{descriptionSuggestion}</p>
+                        <Button size="sm" variant="secondary" className="mt-2" onClick={() => setNewDesc(descriptionSuggestion)}>Apply</Button>
+                      </div>
+                    )}
+                  </div>
+                  <Button onClick={createVideo} className="w-full">Create Project</Button>
                 </div>
-                <Button onClick={createVideo} className="w-full">Create Project</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
 
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-6 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
-                <Video className="h-5 w-5 text-accent-foreground" />
+              <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <Video className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold font-display">{videos.length}</p>
-                <p className="text-sm text-muted-foreground">Total Videos</p>
+                <p className="text-2xl font-bold font-display text-slate-900">{videos.length}</p>
+                <p className="text-sm text-slate-500">Total Videos</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-6 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
-                <Zap className="h-5 w-5 text-accent-foreground" />
+              <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                <Zap className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold font-display">{totalRuns}</p>
-                <p className="text-sm text-muted-foreground">Total Runs</p>
+                <p className="text-2xl font-bold font-display text-slate-900">{totalRuns}</p>
+                <p className="text-sm text-slate-500">Total Runs</p>
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-6 flex items-center gap-4">
-              <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-accent-foreground" />
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <TrendingUp className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-bold font-display">∞</p>
-                <p className="text-sm text-muted-foreground">Runs Remaining</p>
+                <p className="text-2xl font-bold font-display text-slate-900">∞</p>
+                <p className="text-sm text-slate-500">Runs Remaining</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Video List */}
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : videos.length === 0 ? (
-          <Card className="text-center py-12">
+          <Card className="surface-card text-center py-12">
             <CardContent>
-              <Video className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <Video className="h-12 w-12 mx-auto text-slate-400 mb-4" />
               <h3 className="text-lg font-display font-semibold mb-2">No videos yet</h3>
-              <p className="text-muted-foreground mb-4">Create your first content project to get started</p>
+              <p className="text-slate-500 mb-4">Create your first content project to get started</p>
               <Button onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />New Video</Button>
             </CardContent>
           </Card>
@@ -225,7 +225,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {videos.map((video) => (
               <Link key={video.id} to={`/video/${video.id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <Card className="surface-card h-full cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-30px_rgba(15,23,42,0.55)]">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-lg font-display leading-tight">{video.title}</CardTitle>
@@ -236,9 +236,9 @@ export default function Dashboard() {
                   </CardHeader>
                   <CardContent>
                     {video.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{video.description}</p>
+                      <p className="text-sm text-slate-600 line-clamp-2 mb-3">{video.description}</p>
                     )}
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center justify-between text-xs text-slate-500">
                       <span>{runCounts[video.id] || 0} runs</span>
                       <span>{format(new Date(video.created_at), "MMM d, yyyy")}</span>
                     </div>

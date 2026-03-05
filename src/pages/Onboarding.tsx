@@ -105,27 +105,36 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display">Channel Onboarding</CardTitle>
-            <CardDescription>Set your channel direction. We will generate your initial style baseline automatically.</CardDescription>
+    <div className="min-h-screen relative overflow-hidden p-6 md:p-10">
+      <div className="hero-orb h-80 w-80 bg-blue-300/30 left-[-7rem] top-[-5rem]" />
+      <div className="hero-orb h-96 w-96 bg-purple-300/20 right-[-10rem] top-[-5rem]" />
+
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Card className="glass-card">
+          <CardHeader className="pb-4">
+            <div className="inline-flex w-fit items-center rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+              Required setup
+            </div>
+            <CardTitle className="font-display text-4xl">Channel Onboarding</CardTitle>
+            <CardDescription className="max-w-2xl">
+              Define your channel baseline once. Every future run uses this profile by default and keeps learning over time.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label>Channel goal + niche (required)</Label>
               <Textarea
                 value={goal}
                 onChange={(event) => setGoal(event.target.value)}
                 placeholder="Example: I help startup founders explain AI tools in under 60 seconds with practical examples."
+                className="min-h-[120px]"
               />
             </div>
 
-            <div className="rounded-md border p-3 flex items-center justify-between">
+            <div className="surface-card p-4 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">Auto-select style controls from your goal</p>
-                <p className="text-xs text-muted-foreground">Recommended for fast setup.</p>
+                <p className="text-sm font-medium text-slate-800">Auto-select style controls from your goal</p>
+                <p className="text-xs text-slate-500">Recommended for faster setup and consistent baseline quality.</p>
               </div>
               <Switch
                 checked={autoSelectStyles}
@@ -136,12 +145,14 @@ export default function Onboarding() {
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <Label>YouTube inspirations (channel links)</Label>
-                <Button variant="outline" size="sm" onClick={addInspiration}>Add</Button>
+                <Button variant="outline" size="sm" onClick={addInspiration}>
+                  Add Channel
+                </Button>
               </div>
               {inspirations.map((item, index) => (
-                <div key={index} className="rounded-md border p-3 space-y-2">
+                <div key={index} className="surface-card p-4 space-y-2">
                   <Input
                     value={item.youtubeUrl}
                     onChange={(event) => updateInspiration(index, "youtubeUrl", event.target.value)}
@@ -163,14 +174,14 @@ export default function Onboarding() {
               ))}
             </div>
 
-            <div className="space-y-2">
+            <div>
               <Button variant="outline" onClick={() => setInspirationAdvancedOpen((prev) => !prev)}>
-                {inspirationAdvancedOpen ? "Hide Advanced Options" : "Advanced Options"}
+                {inspirationAdvancedOpen ? "Hide Inspiration Advanced Options" : "Advanced: Inspiration Notes"}
               </Button>
             </div>
 
             {!autoSelectStyles && (
-              <div className="space-y-4 rounded-md border p-4">
+              <div className="surface-card p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Tone</Label>

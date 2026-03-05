@@ -118,13 +118,15 @@ export default function Billing() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-display font-bold">Billing</h1>
-          <p className="text-muted-foreground mt-1">Manage your subscription plan</p>
-        </div>
+      <div className="max-w-5xl mx-auto space-y-6">
+        <Card className="glass-card">
+          <CardContent className="pt-6">
+            <h1 className="text-3xl md:text-4xl font-display font-bold">Billing</h1>
+            <p className="text-slate-500 mt-1">Manage subscription status, limits, and plan upgrades.</p>
+          </CardContent>
+        </Card>
 
-        <Card>
+        <Card className="surface-card">
           <CardHeader>
             <CardTitle className="font-display">Current Usage</CardTitle>
             <CardDescription>Your usage this billing period</CardDescription>
@@ -137,22 +139,22 @@ export default function Billing() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <p className="text-sm text-muted-foreground">Runs Used</p>
-                  <p className="text-3xl font-bold font-display">
+                  <p className="text-sm text-slate-500">Runs Used</p>
+                  <p className="text-3xl font-bold font-display text-slate-900">
                     {runsUsed}
                     {planLimit > 0 ? ` / ${planLimit}` : ""}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Current Plan</p>
+                  <p className="text-sm text-slate-500">Current Plan</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-3xl font-bold font-display">{currentPlanName}</p>
+                    <p className="text-3xl font-bold font-display text-slate-900">{currentPlanName}</p>
                     <Badge variant={statusText === "active" || statusText === "trialing" ? "default" : "secondary"}>{statusText}</Badge>
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Next Billing</p>
-                  <p className="text-3xl font-bold font-display">{nextBilling}</p>
+                  <p className="text-sm text-slate-500">Next Billing</p>
+                  <p className="text-3xl font-bold font-display text-slate-900">{nextBilling}</p>
                 </div>
               </div>
             )}
@@ -165,7 +167,7 @@ export default function Billing() {
             const isCurrent = profile?.stripe_price_id === priceId;
 
             return (
-              <Card key={plan.key} className={plan.recommended ? "border-primary shadow-lg" : ""}>
+              <Card key={plan.key} className={plan.recommended ? "surface-card border-blue-300 shadow-[0_24px_40px_-30px_rgba(59,130,246,0.5)]" : "surface-card"}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="font-display">{plan.name}</CardTitle>
@@ -173,8 +175,8 @@ export default function Billing() {
                     {plan.recommended && <Badge>Recommended</Badge>}
                   </div>
                   <div className="mt-2">
-                    <span className="text-4xl font-bold font-display">{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.period}</span>
+                    <span className="text-4xl font-bold font-display text-slate-900">{plan.price}</span>
+                    <span className="text-slate-500">{plan.period}</span>
                   </div>
                 </CardHeader>
                 <CardContent>

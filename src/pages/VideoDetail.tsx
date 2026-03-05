@@ -369,7 +369,7 @@ export default function VideoDetail() {
     return (
       <AppLayout>
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Video not found</p>
+          <p className="text-slate-500">Video not found</p>
           <Link to="/dashboard"><Button variant="link">Back to Dashboard</Button></Link>
         </div>
       </AppLayout>
@@ -378,120 +378,124 @@ export default function VideoDetail() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Link to="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+      <div className="max-w-5xl mx-auto space-y-6">
+        <Link to="/dashboard" className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
           <ArrowLeft className="mr-1 h-4 w-4" />Back to Dashboard
         </Link>
 
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            {!editingMeta ? (
-              <>
-                <h1 className="text-3xl font-display font-bold">{video.title}</h1>
-                {video.description && <p className="text-muted-foreground mt-2">{video.description}</p>}
-              </>
-            ) : (
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Title</Label>
-                    <Button size="sm" variant="outline" onClick={() => suggestCopy("title")} disabled={suggestingTarget !== null}>
-                      <Wand2 className="mr-2 h-3.5 w-3.5" />
-                      {suggestingTarget === "title" ? "Suggesting..." : "Suggest Title"}
-                    </Button>
-                  </div>
-                  <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
-                  {titleSuggestion && (
-                    <div className="rounded-md border p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground mb-1">Suggested Title</p>
-                      <p className="text-sm">{titleSuggestion}</p>
-                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setDraftTitle(titleSuggestion)}>Apply</Button>
+        <Card className="glass-card">
+          <CardContent className="pt-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex-1">
+                {!editingMeta ? (
+                  <>
+                    <h1 className="text-3xl md:text-4xl font-display font-bold">{video.title}</h1>
+                    {video.description && <p className="text-slate-600 mt-2">{video.description}</p>}
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Title</Label>
+                        <Button size="sm" variant="outline" onClick={() => suggestCopy("title")} disabled={suggestingTarget !== null}>
+                          <Wand2 className="mr-2 h-3.5 w-3.5" />
+                          {suggestingTarget === "title" ? "Suggesting..." : "Suggest Title"}
+                        </Button>
+                      </div>
+                      <Input value={draftTitle} onChange={(event) => setDraftTitle(event.target.value)} />
+                      {titleSuggestion && (
+                        <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+                          <p className="text-xs text-slate-500 mb-1">Suggested Title</p>
+                          <p className="text-sm text-slate-800">{titleSuggestion}</p>
+                          <Button size="sm" variant="secondary" className="mt-2" onClick={() => setDraftTitle(titleSuggestion)}>Apply</Button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Description</Label>
-                    <Button size="sm" variant="outline" onClick={() => suggestCopy("description")} disabled={suggestingTarget !== null}>
-                      <Wand2 className="mr-2 h-3.5 w-3.5" />
-                      {suggestingTarget === "description" ? "Suggesting..." : "Suggest Description"}
-                    </Button>
-                  </div>
-                  <Textarea value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} />
-                  {descriptionSuggestion && (
-                    <div className="rounded-md border p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground mb-1">Suggested Description</p>
-                      <p className="text-sm whitespace-pre-wrap">{descriptionSuggestion}</p>
-                      <Button size="sm" variant="secondary" className="mt-2" onClick={() => setDraftDescription(descriptionSuggestion)}>Apply</Button>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Description</Label>
+                        <Button size="sm" variant="outline" onClick={() => suggestCopy("description")} disabled={suggestingTarget !== null}>
+                          <Wand2 className="mr-2 h-3.5 w-3.5" />
+                          {suggestingTarget === "description" ? "Suggesting..." : "Suggest Description"}
+                        </Button>
+                      </div>
+                      <Textarea value={draftDescription} onChange={(event) => setDraftDescription(event.target.value)} />
+                      {descriptionSuggestion && (
+                        <div className="rounded-xl border border-slate-200 bg-white/90 p-3">
+                          <p className="text-xs text-slate-500 mb-1">Suggested Description</p>
+                          <p className="text-sm whitespace-pre-wrap text-slate-800">{descriptionSuggestion}</p>
+                          <Button size="sm" variant="secondary" className="mt-2" onClick={() => setDraftDescription(descriptionSuggestion)}>Apply</Button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={saveVideoMeta} disabled={metaSaving}>
-                    {metaSaving ? "Saving..." : "Save"}
-                  </Button>
-                  <Button variant="outline" onClick={() => { setEditingMeta(false); setDraftTitle(video.title); setDraftDescription(video.description || ""); }}>
-                    Cancel
-                  </Button>
+                    <div className="flex items-center gap-2">
+                      <Button onClick={saveVideoMeta} disabled={metaSaving}>
+                        {metaSaving ? "Saving..." : "Save"}
+                      </Button>
+                      <Button variant="outline" onClick={() => { setEditingMeta(false); setDraftTitle(video.title); setDraftDescription(video.description || ""); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 mt-3">
+                  <Badge variant={video.status === "draft" ? "secondary" : "default"}>{video.status}</Badge>
+                  <span className="text-sm text-slate-500">Created {format(new Date(video.created_at), "MMM d, yyyy")}</span>
                 </div>
               </div>
-            )}
-            <div className="flex items-center gap-3 mt-3">
-              <Badge variant={video.status === "draft" ? "secondary" : "default"}>{video.status}</Badge>
-              <span className="text-sm text-muted-foreground">Created {format(new Date(video.created_at), "MMM d, yyyy")}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete Project
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this project?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete this video, all runs, artifacts, feedback, and related insights.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={deleteProject} disabled={deleting}>
+                        {deleting ? "Deleting..." : "Delete"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                {!hasFullyApprovedRun && (
+                  <Button onClick={triggerRun} disabled={running || deleting}>
+                    <Play className="mr-2 h-4 w-4" />
+                    {running ? runStatusText : "New Run"}
+                  </Button>
+                )}
+                {!editingMeta && (
+                  <Button variant="outline" onClick={() => setEditingMeta(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Title/Description
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-destructive border-destructive hover:bg-destructive/10">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Project
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this project?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete this video, all runs, artifacts, feedback, and related insights.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={deleteProject} disabled={deleting}>
-                    {deleting ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            {!hasFullyApprovedRun && (
-              <Button onClick={triggerRun} disabled={running || deleting}>
-                <Play className="mr-2 h-4 w-4" />
-                {running ? runStatusText : "New Run"}
-              </Button>
-            )}
-            {!editingMeta && (
-              <Button variant="outline" onClick={() => setEditingMeta(true)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Title/Description
-              </Button>
-            )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         <div>
           <h2 className="text-xl font-display font-semibold mb-4">Run History</h2>
           {hasFullyApprovedRun && (
-            <Card className="mb-4">
+            <Card className="surface-card mb-4">
               <CardContent className="py-4">
-                <p className="text-sm text-muted-foreground">This project has a fully approved run. New runs are disabled.</p>
+                <p className="text-sm text-slate-600">This project has a fully approved run. New runs are disabled.</p>
               </CardContent>
             </Card>
           )}
           {runs.length === 0 ? (
-            <Card className="text-center py-8">
+            <Card className="surface-card text-center py-8">
               <CardContent>
-                <p className="text-muted-foreground mb-4">No runs yet. Trigger your first AI pipeline run.</p>
+                <p className="text-slate-500 mb-4">No runs yet. Trigger your first AI pipeline run.</p>
                 <Button onClick={triggerRun} disabled={running || hasFullyApprovedRun}>
                   <Play className="mr-2 h-4 w-4" />
                   {running ? runStatusText : "Run Pipeline"}
@@ -502,16 +506,16 @@ export default function VideoDetail() {
             <div className="space-y-3">
               {runs.map((run) => (
                 <Link key={run.id} to={`/run/${run.id}`}>
-                  <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <Card className="surface-card cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-[0_20px_40px_-30px_rgba(15,23,42,0.55)]">
                     <CardContent className="py-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         {statusIcon(run.status)}
                         <div>
-                          <p className="font-medium text-sm">Run #{run.id.slice(0, 8)}</p>
-                          <p className="text-xs text-muted-foreground">{format(new Date(run.started_at), "MMM d, yyyy · h:mm a")}</p>
+                          <p className="font-medium text-sm text-slate-800">Run #{run.id.slice(0, 8)}</p>
+                          <p className="text-xs text-slate-500">{format(new Date(run.started_at), "MMM d, yyyy · h:mm a")}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-4 text-sm text-slate-500">
                         <span>{artifactCounts[run.id] || 0} artifacts</span>
                         <Badge variant={run.status === "completed" ? "default" : run.status === "failed" ? "destructive" : "secondary"}>
                           {run.status}
@@ -528,19 +532,19 @@ export default function VideoDetail() {
         <div>
           <h2 className="text-xl font-display font-semibold mb-4">Approved Outputs</h2>
           {approvedOutputs.length === 0 ? (
-            <Card>
+            <Card className="surface-card">
               <CardContent className="py-6">
-                <p className="text-sm text-muted-foreground">No finalized outputs yet. Finalize from Run Detail after approvals.</p>
+                <p className="text-sm text-slate-500">No finalized outputs yet. Finalize from Run Detail after approvals.</p>
               </CardContent>
             </Card>
           ) : (
             <div className="space-y-3">
               {approvedOutputs.map((output) => (
-                <Card key={output.id}>
+                <Card key={output.id} className="surface-card">
                   <CardContent className="py-4 flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-medium text-sm">Approved Package v{output.version}</p>
-                      <p className="text-xs text-muted-foreground">{format(new Date(output.created_at), "MMM d, yyyy · h:mm a")}</p>
+                      <p className="font-medium text-sm text-slate-800">Approved Package v{output.version}</p>
+                      <p className="text-xs text-slate-500">{format(new Date(output.created_at), "MMM d, yyyy · h:mm a")}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="outline" onClick={() => downloadApprovedFile(output.json_storage_path)}>JSON</Button>

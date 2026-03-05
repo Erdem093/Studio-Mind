@@ -229,7 +229,7 @@ export default function RunDetail() {
     return (
       <AppLayout>
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Run not found</p>
+          <p className="text-slate-500">Run not found</p>
         </div>
       </AppLayout>
     );
@@ -248,30 +248,32 @@ export default function RunDetail() {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <Link to={`/video/${run.video_id}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+      <div className="max-w-5xl mx-auto space-y-6">
+        <Link to={`/video/${run.video_id}`} className="inline-flex items-center text-sm text-slate-500 hover:text-slate-900">
           <ArrowLeft className="mr-1 h-4 w-4" />Back to Video
         </Link>
 
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Run #{run.id.slice(0, 8)}</h1>
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-              <span>{format(new Date(run.started_at), "MMM d, yyyy · h:mm a")}</span>
-              {run.cost_tokens && <span>{run.cost_tokens.toLocaleString()} tokens</span>}
-              {run.cost_usd && <span>${Number(run.cost_usd).toFixed(4)}</span>}
+        <Card className="glass-card">
+          <CardContent className="pt-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-display font-bold">Run #{run.id.slice(0, 8)}</h1>
+              <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
+                <span>{format(new Date(run.started_at), "MMM d, yyyy · h:mm a")}</span>
+                {run.cost_tokens && <span>{run.cost_tokens.toLocaleString()} tokens</span>}
+                {run.cost_usd && <span>${Number(run.cost_usd).toFixed(4)}</span>}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={finalizeApprovedOutput} disabled={!canFinalize || finalizing}>
-              <FileArchive className="mr-2 h-4 w-4" />
-              {finalizing ? "Finalizing..." : "Finalize Output"}
-            </Button>
-          </div>
-        </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={finalizeApprovedOutput} disabled={!canFinalize || finalizing}>
+                <FileArchive className="mr-2 h-4 w-4" />
+                {finalizing ? "Finalizing..." : "Finalize Output"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {finalizedLinks && (
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-5 flex items-center gap-2">
               {finalizedLinks.jsonUrl && (
                 <Button asChild variant="outline">
@@ -298,13 +300,13 @@ export default function RunDetail() {
             <h2 className="text-lg font-display font-semibold mb-3">{TYPE_LABELS[type] || type}</h2>
             <div className="space-y-3">
               {arts.map((art) => (
-                <Card key={art.id}>
+                <Card key={art.id} className="surface-card">
                   <CardContent className="pt-5">
                     <div className="flex items-start justify-between mb-3">
                       <div className="space-y-2">
                         {statusBadge(art.approval_status)}
                         {art.agent_name && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-slate-500">
                             {art.agent_name}
                             {art.agent_version ? ` (${art.agent_version})` : ""}
                           </p>
@@ -340,11 +342,11 @@ export default function RunDetail() {
                         </Button>
                       )}
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{art.content || "No content"}</p>
+                    <p className="text-sm whitespace-pre-wrap text-slate-700">{art.content || "No content"}</p>
                     {art.type === "thumbnail" && (
                       <div className="mt-3 space-y-2">
                         {getThumbnailUrl(art) && (
-                          <img src={getThumbnailUrl(art) || ""} alt="Generated thumbnail" className="w-full max-w-md rounded-md border" />
+                          <img src={getThumbnailUrl(art) || ""} alt="Generated thumbnail" className="w-full max-w-md rounded-xl border border-slate-200" />
                         )}
                         {getThumbnailUrl(art) && (
                           <Button asChild size="sm" variant="outline">
@@ -364,9 +366,9 @@ export default function RunDetail() {
         ))}
 
         {artifacts.length === 0 && (
-          <Card className="text-center py-8">
+          <Card className="surface-card text-center py-8">
             <CardContent>
-              <p className="text-muted-foreground">No artifacts generated for this run.</p>
+              <p className="text-slate-500">No artifacts generated for this run.</p>
             </CardContent>
           </Card>
         )}
@@ -392,7 +394,7 @@ export default function RunDetail() {
               {rejectingArtifactId ? (
                 <>
                   <Label>Feedback target</Label>
-                  <p className="text-sm text-muted-foreground">This rejection feedback will be attached to the selected artifact.</p>
+                  <p className="text-sm text-slate-500">This rejection feedback will be attached to the selected artifact.</p>
                 </>
               ) : (
                 <>
@@ -445,10 +447,10 @@ export default function RunDetail() {
               {advancedFeedbackOpen ? "Hide Advanced Settings" : "Advanced Settings"}
             </Button>
             {advancedFeedbackOpen && (
-              <div className="flex items-center justify-between rounded-md border p-3">
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/90 p-3">
                 <div>
                   <p className="text-sm font-medium">Only keep memory for this specific video</p>
-                  <p className="text-xs text-muted-foreground">Default is global so your whole channel improves over time.</p>
+                  <p className="text-xs text-slate-500">Default is global so your whole channel improves over time.</p>
                 </div>
                 <Switch checked={limitToVideo} onCheckedChange={setLimitToVideo} />
               </div>

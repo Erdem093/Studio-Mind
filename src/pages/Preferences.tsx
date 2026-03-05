@@ -353,22 +353,29 @@ export default function Preferences() {
 
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto space-y-8">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Preferences</h1>
-            <p className="text-muted-foreground mt-1">Define your channel baseline used by all projects and agents.</p>
-          </div>
-          <Button variant="outline" onClick={resetOnboarding} disabled={resetting}>
-            {resetting ? "Resetting..." : "Run Onboarding Again"}
-          </Button>
-        </div>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <Card className="glass-card">
+          <CardHeader className="pb-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="inline-flex w-fit items-center rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                  Channel baseline
+                </div>
+                <h1 className="text-3xl md:text-4xl font-display font-bold mt-3">Preferences</h1>
+                <p className="text-slate-500 mt-1">Define your persistent style profile used by all projects and agents.</p>
+              </div>
+              <Button variant="outline" onClick={resetOnboarding} disabled={resetting}>
+                {resetting ? "Resetting..." : "Run Onboarding Again"}
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
         {loading ? (
           <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>
         ) : (
           <>
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle className="font-display">Channel Summary Prompt</CardTitle>
                 <CardDescription>Editable master instruction block for the conductor and specialist agents.</CardDescription>
@@ -380,7 +387,7 @@ export default function Preferences() {
                 </div>
                 <div className="space-y-2">
                   <Label>Master channel summary prompt</Label>
-                  <Textarea value={channelSummaryPrompt} onChange={(event) => setChannelSummaryPrompt(event.target.value)} className="min-h-[200px]" />
+                  <Textarea value={channelSummaryPrompt} onChange={(event) => setChannelSummaryPrompt(event.target.value)} className="min-h-[220px]" />
                 </div>
                 <Button variant="outline" onClick={() => setAdvancedOpen((prev) => !prev)}>
                   {advancedOpen ? "Hide Advanced Settings" : "Advanced Settings"}
@@ -388,13 +395,13 @@ export default function Preferences() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle className="font-display">YouTube Intelligence</CardTitle>
                 <CardDescription>Connect and sync your YouTube data for iterative OpenClaw analysis loops.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-slate-600">
                   Status: {youtubeChannelId ? `Connected (${youtubeChannelId})` : "Not connected"}
                   {youtubeConnectedAt ? ` · ${format(new Date(youtubeConnectedAt), "MMM d, yyyy · h:mm a")}` : ""}
                 </p>
@@ -414,7 +421,7 @@ export default function Preferences() {
 
             {advancedOpen && (
               <>
-                <Card>
+                <Card className="surface-card">
                   <CardHeader>
                     <CardTitle className="font-display">Style Controls</CardTitle>
                   </CardHeader>
@@ -450,16 +457,16 @@ export default function Preferences() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="surface-card">
                   <CardHeader>
                     <CardTitle className="font-display">YouTube Inspirations</CardTitle>
                     <CardDescription>Channel links and what to emulate from each one.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <Button variant="outline" size="sm" onClick={addInspiration}>Add inspiration</Button>
-                    {inspirations.length === 0 && <p className="text-sm text-muted-foreground">No inspirations yet.</p>}
+                    {inspirations.length === 0 && <p className="text-sm text-slate-500">No inspirations yet.</p>}
                     {inspirations.map((item, index) => (
-                      <div key={item.id || index} className="rounded-md border p-3 space-y-2">
+                      <div key={item.id || index} className="rounded-xl border border-slate-200 bg-white/90 p-3 space-y-2">
                         <Input value={item.youtube_url} onChange={(event) => updateInspiration(index, "youtube_url", event.target.value)} placeholder="https://www.youtube.com/@creator" />
                         <Input value={item.note} onChange={(event) => updateInspiration(index, "note", event.target.value)} placeholder="What to emulate" />
                         <Button variant="ghost" size="sm" onClick={() => removeInspiration(index)}>Remove</Button>
@@ -474,7 +481,7 @@ export default function Preferences() {
               <Button onClick={savePreferences} disabled={saving}>{saving ? "Saving..." : "Save Preferences"}</Button>
             </div>
 
-            <Card>
+            <Card className="surface-card">
               <CardHeader>
                 <CardTitle className="font-display">Past Agent Modifications</CardTitle>
                 <CardDescription>Feedback and preference changes that shaped your current baseline.</CardDescription>
@@ -482,15 +489,15 @@ export default function Preferences() {
               <CardContent>
                 <div className="space-y-2">
                   {history.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No history yet.</p>
+                    <p className="text-sm text-slate-500">No history yet.</p>
                   ) : (
                     history.map((item) => (
-                      <div key={item.id} className="rounded-md border p-3">
+                      <div key={item.id} className="rounded-xl border border-slate-200 bg-white/90 p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium">{item.change_summary}</p>
-                          <span className="text-xs text-muted-foreground">{item.source}</span>
+                          <p className="text-sm font-medium text-slate-800">{item.change_summary}</p>
+                          <span className="text-xs text-slate-500">{item.source}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-slate-500 mt-1">
                           {item.agent_name ? `${item.agent_name} · ` : ""}
                           {format(new Date(item.created_at), "MMM d, yyyy · h:mm a")}
                         </p>

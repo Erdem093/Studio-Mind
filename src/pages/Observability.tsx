@@ -108,35 +108,37 @@ export default function Observability() {
 
   return (
     <AppLayout>
-      <div className="max-w-5xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-3xl font-display font-bold">Observability</h1>
-          <p className="text-muted-foreground mt-1">Pipeline traces, per-agent metrics, and run cost diagnostics</p>
-        </div>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <Card className="glass-card">
+          <CardContent className="pt-6">
+            <h1 className="text-3xl md:text-4xl font-display font-bold">Observability</h1>
+            <p className="text-slate-500 mt-1">Pipeline traces, per-agent metrics, prompts, and cost diagnostics.</p>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Total Spend</p>
-              <p className="text-3xl font-bold font-display">${totalCost.toFixed(2)}</p>
+              <p className="text-sm text-slate-500">Total Spend</p>
+              <p className="text-3xl font-bold font-display text-slate-900">${totalCost.toFixed(2)}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Total Tokens</p>
-              <p className="text-3xl font-bold font-display">{totalTokens.toLocaleString()}</p>
+              <p className="text-sm text-slate-500">Total Tokens</p>
+              <p className="text-3xl font-bold font-display text-slate-900">{totalTokens.toLocaleString()}</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="surface-card">
             <CardContent className="pt-6">
-              <p className="text-sm text-muted-foreground">Total Runs</p>
-              <p className="text-3xl font-bold font-display">{runs.length}</p>
+              <p className="text-sm text-slate-500">Total Runs</p>
+              <p className="text-3xl font-bold font-display text-slate-900">{runs.length}</p>
             </CardContent>
           </Card>
         </div>
 
         {chartData.length > 0 && (
-          <Card>
+          <Card className="surface-card">
             <CardHeader>
               <CardTitle className="font-display">Usage Over Time</CardTitle>
             </CardHeader>
@@ -154,7 +156,7 @@ export default function Observability() {
           </Card>
         )}
 
-        <Card>
+        <Card className="surface-card">
           <CardHeader>
             <CardTitle className="font-display">Recent Runs</CardTitle>
             <CardDescription>Per-agent execution metrics and traces</CardDescription>
@@ -165,7 +167,7 @@ export default function Observability() {
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
               </div>
             ) : runs.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No runs yet</p>
+              <p className="text-slate-500 text-center py-8">No runs yet</p>
             ) : (
               <div className="space-y-4">
                 {runs.map((run) => {
@@ -174,23 +176,23 @@ export default function Observability() {
                   const totalLatency = metrics.reduce((sum, metric) => sum + (metric.latency_ms || 0), 0);
 
                   return (
-                    <div key={run.id} className="py-3 border-b last:border-0">
+                    <div key={run.id} className="rounded-xl border border-slate-200 bg-white/90 p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div>
-                          <p className="text-sm font-medium">Run #{run.id.slice(0, 8)}</p>
-                          <p className="text-xs text-muted-foreground">{format(new Date(run.started_at), "MMM d · h:mm a")}</p>
+                          <p className="text-sm font-medium text-slate-800">Run #{run.id.slice(0, 8)}</p>
+                          <p className="text-xs text-slate-500">{format(new Date(run.started_at), "MMM d · h:mm a")}</p>
                           <div className="flex items-center gap-2 mt-1">
                             {run.trace_url && (
                               <a href={run.trace_url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
                                 Trace
                               </a>
                             )}
-                            {run.model && <span className="text-xs text-muted-foreground">{run.model}</span>}
-                            <span className="text-xs text-muted-foreground">
+                            {run.model && <span className="text-xs text-slate-500">{run.model}</span>}
+                            <span className="text-xs text-slate-500">
                               {metrics.length} agents · {(totalLatency / 1000).toFixed(2)}s
                             </span>
                             {Array.isArray(run.memory_applied) && (
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-slate-500">
                                 Memory refs:{" "}
                                 {run.memory_applied.reduce(
                                   (sum, item) => sum + item.memory_rows.length + item.feedback_rows.length,
@@ -199,7 +201,7 @@ export default function Observability() {
                               </span>
                             )}
                             {Array.isArray(run.memory_applied) && (
-                              <span className="text-xs text-muted-foreground">
+                              <span className="text-xs text-slate-500">
                                 External insights:{" "}
                                 {run.memory_applied.reduce(
                                   (sum, item) => sum + (Array.isArray((item as any).external_insight_ids) ? (item as any).external_insight_ids.length : 0),
@@ -211,8 +213,8 @@ export default function Observability() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4 text-sm">
-                          <span className="text-muted-foreground">{(run.cost_tokens || 0).toLocaleString()} tokens</span>
-                          <span className="font-medium">${(Number(run.cost_usd) || 0).toFixed(4)}</span>
+                          <span className="text-slate-500">{(run.cost_tokens || 0).toLocaleString()} tokens</span>
+                          <span className="font-medium text-slate-900">${(Number(run.cost_usd) || 0).toFixed(4)}</span>
                           <Badge variant={run.status === "completed" ? "default" : run.status === "failed" ? "destructive" : "secondary"}>
                             {run.status}
                           </Badge>
@@ -222,20 +224,20 @@ export default function Observability() {
                       {metrics.length > 0 && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
                           {metrics.map((metric, index) => (
-                            <div key={`${run.id}-${metric.agent_name}-${index}`} className="rounded-md border p-2 text-xs">
+                            <div key={`${run.id}-${metric.agent_name}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3 text-xs">
                               <div className="flex items-center justify-between">
                                 <span className="font-medium">{metric.agent_name}</span>
                                 <Badge variant={metric.status === "completed" ? "outline" : "destructive"}>{metric.status}</Badge>
                               </div>
-                              <p className="text-muted-foreground mt-1">
+                              <p className="text-slate-500 mt-1">
                                 {metric.artifact_type} · {(metric.latency_ms / 1000).toFixed(2)}s · {metric.total_tokens.toLocaleString()} tokens ·
                                 ${metric.cost_usd.toFixed(4)}
                               </p>
                               {metric.error_message && <p className="text-destructive mt-1">{metric.error_message}</p>}
                               {metric.prompt_text && (
                                 <details className="mt-2">
-                                  <summary className="cursor-pointer text-muted-foreground">Prompt</summary>
-                                  <pre className="mt-1 whitespace-pre-wrap rounded border bg-muted/30 p-2 text-[11px] leading-4">{metric.prompt_text}</pre>
+                                  <summary className="cursor-pointer text-slate-500">Prompt</summary>
+                                  <pre className="mt-1 whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50/90 p-2 text-[11px] leading-4 text-slate-700">{metric.prompt_text}</pre>
                                 </details>
                               )}
                             </div>
@@ -245,7 +247,7 @@ export default function Observability() {
 
                       {run.error_message && <p className="text-xs text-destructive mt-2">{run.error_message}</p>}
                       {run.quality_delta?.current_score !== null && run.quality_delta?.current_score !== undefined && (
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-slate-500 mt-2">
                           Quality score: {run.quality_delta.current_score}
                           {run.quality_delta.delta_score !== null && run.quality_delta.delta_score !== undefined
                             ? ` (${run.quality_delta.delta_score >= 0 ? "+" : ""}${run.quality_delta.delta_score} vs previous)`
@@ -260,21 +262,21 @@ export default function Observability() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="surface-card">
           <CardHeader>
             <CardTitle className="font-display">OpenClaw Analysis Jobs</CardTitle>
             <CardDescription>Failed/dead-letter jobs can be retried manually.</CardDescription>
           </CardHeader>
           <CardContent>
             {jobs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No analysis jobs yet.</p>
+              <p className="text-sm text-slate-500">No analysis jobs yet.</p>
             ) : (
               <div className="space-y-3">
                 {jobs.map((job) => (
-                  <div key={job.id} className="rounded-md border p-3 flex items-start justify-between gap-3">
+                  <div key={job.id} className="rounded-xl border border-slate-200 bg-white/90 p-3 flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium">{job.job_type} · {job.source}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm font-medium text-slate-800">{job.job_type} · {job.source}</p>
+                      <p className="text-xs text-slate-500">
                         {format(new Date(job.created_at), "MMM d, yyyy · h:mm a")} · attempts {job.attempt_count}
                       </p>
                       {job.last_error && <p className="text-xs text-destructive mt-1">{job.last_error}</p>}
