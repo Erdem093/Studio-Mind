@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "openclaw:once": "node scripts/openclaw-worker.mjs --once",
+    "openclaw:worker": "node scripts/openclaw-worker.mjs",
+    "openclaw:dry": "node scripts/openclaw-worker.mjs --once --dry-run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

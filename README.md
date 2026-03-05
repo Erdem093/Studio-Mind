@@ -224,3 +224,23 @@ Recommended events:
 - Show observability trace link + per-agent metrics
 - Show subscription checkout path
 - Show Connect onboarding + platform-fee checkout path
+
+## Local OpenClaw Worker
+
+Run analysis worker on your laptop:
+
+```bash
+cp .env.openclaw.example .env.openclaw
+set -a; source .env.openclaw; set +a
+npm run openclaw:once
+```
+
+Continuous mode:
+
+```bash
+set -a; source .env.openclaw; set +a
+npm run openclaw:worker
+```
+
+Detailed behavior + safety controls:
+- [OpenClaw Worker Guide](docs/openclaw-worker.md)
