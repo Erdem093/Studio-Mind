@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const openAiApiKey = Deno.env.get("OPENAI_API_KEY");
-  const model = Deno.env.get("OPENAI_MODEL") ?? "gpt-4.1-mini";
+  const model = Deno.env.get("OPENAI_SUGGEST_MODEL") ?? "gpt-4o-mini";
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !openAiApiKey) {
     return jsonResponse(500, { error: "Missing required environment variables" });
@@ -118,7 +118,8 @@ Deno.serve(async (req) => {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.5,
+      temperature: 0.3,
+      max_tokens: 220,
       response_format: { type: "json_object" },
       messages: [
         {

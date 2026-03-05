@@ -933,100 +933,126 @@ Deno.serve(async (req) => {
     }> = [];
     let titleImagePrompt: string | null = null;
 
-    for (const agent of AGENTS) {
-      const spanId = randomHex(8);
-      const spanStart = nowNano();
-      const perfStart = Date.now();
+    const agentResults = await Promise.allSettled(
+      AGENTS.map(async (agent) => {
+        const spanId = randomHex(8);
+        const spanStart = nowNano();
+        const perfStart = Date.now();
 
-      try {
-        const result = await callAgent(openAiApiKey, agent, context);
-        const costUsd = estimateCostUsd(OPENAI_MODEL, result.promptTokens, result.completionTokens);
-        const latencyMs = Date.now() - perfStart;
+        try {
+          const result = await callAgent(openAiApiKey, agent, context);
+          const costUsd = estimateCostUsd(OPENAI_MODEL, result.promptTokens, result.completionTokens);
+          const latencyMs = Date.now() - perfStart;
 
-        artifactRows.push({
-          run_id: runId,
-          user_id: user.id,
-          type: agent.artifactType,
-          content: result.content,
-          agent_name: agent.name,
-          agent_version: AGENT_VERSION,
-          storage_path: null,
-          mime_type: null,
-          metadata: {},
-        });
-        if (agent.name === "TitleAgent") {
-          titleImagePrompt = extractTitleImagePrompt(result.rawJson);
+          const artifactRow = {
+            run_id: runId,
+            user_id: user.id,
+            type: agent.artifactType,
+            content: result.content,
+            agent_name: agent.name,
+            agent_version: AGENT_VERSION,
+            storage_path: null,
+            mime_type: null,
+            metadata: {},
+          };
+
+          const metric: AgentExecutionMetrics = {
+            agent_name: agent.name,
+            artifact_type: agent.artifactType,
+            latency_ms: latencyMs,
+            prompt_tokens: result.promptTokens,
+            completion_tokens: result.completionTokens,
+            total_tokens: result.totalTokens,
+            cost_usd: costUsd,
+            status: "completed",
+            error_message: null,
+            prompt_text: result.promptText,
+          };
+
+          const span: SpanRecord = {
+            spanId,
+            parentSpanId: rootSpanId,
+            name: `${agent.name}.generate`,
+            startTimeUnixNano: spanStart,
+            endTimeUnixNano: nowNano(),
+            statusCode: 1,
+            attributes: [
+              spanAttrString("llm.vendor", "openai"),
+              spanAttrString("llm.model", OPENAI_MODEL),
+              spanAttrString("studio.agent_name", agent.name),
+              spanAttrString("studio.artifact_type", agent.artifactType),
+              spanAttrInt("llm.tokens.input", result.promptTokens),
+              spanAttrInt("llm.tokens.output", result.completionTokens),
+              spanAttrInt("llm.tokens.total", result.totalTokens),
+              spanAttrDouble("llm.cost", costUsd),
+              spanAttrInt("studio.latency_ms", latencyMs),
+            ],
+          };
+
+          return {
+            ok: true as const,
+            agent,
+            artifactRow,
+            metric,
+            span,
+            titleImagePrompt: agent.name === "TitleAgent" ? extractTitleImagePrompt(result.rawJson) : null,
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Unknown agent error";
+          const latencyMs = Date.now() - perfStart;
+          const metric: AgentExecutionMetrics = {
+            agent_name: agent.name,
+            artifact_type: agent.artifactType,
+            latency_ms: latencyMs,
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+            cost_usd: 0,
+            status: "failed",
+            error_message: message,
+            prompt_text: context.channelBaselineText,
+          };
+
+          const span: SpanRecord = {
+            spanId,
+            parentSpanId: rootSpanId,
+            name: `${agent.name}.generate`,
+            startTimeUnixNano: spanStart,
+            endTimeUnixNano: nowNano(),
+            statusCode: 2,
+            statusMessage: message,
+            attributes: [
+              spanAttrString("studio.agent_name", agent.name),
+              spanAttrString("studio.artifact_type", agent.artifactType),
+              spanAttrInt("studio.latency_ms", latencyMs),
+              spanAttrString("error.message", message),
+            ],
+          };
+
+          return { ok: false as const, agent, metric, span, message };
         }
+      }),
+    );
 
-        const metric: AgentExecutionMetrics = {
-          agent_name: agent.name,
-          artifact_type: agent.artifactType,
-          latency_ms: latencyMs,
-          prompt_tokens: result.promptTokens,
-          completion_tokens: result.completionTokens,
-          total_tokens: result.totalTokens,
-          cost_usd: costUsd,
-          status: "completed",
-          error_message: null,
-          prompt_text: result.promptText,
-        };
-        metrics.push(metric);
-
-        spanRecords.push({
-          spanId,
-          parentSpanId: rootSpanId,
-          name: `${agent.name}.generate`,
-          startTimeUnixNano: spanStart,
-          endTimeUnixNano: nowNano(),
-          statusCode: 1,
-          attributes: [
-            spanAttrString("llm.vendor", "openai"),
-            spanAttrString("llm.model", OPENAI_MODEL),
-            spanAttrString("studio.agent_name", agent.name),
-            spanAttrString("studio.artifact_type", agent.artifactType),
-            spanAttrInt("llm.tokens.input", result.promptTokens),
-            spanAttrInt("llm.tokens.output", result.completionTokens),
-            spanAttrInt("llm.tokens.total", result.totalTokens),
-            spanAttrDouble("llm.cost", costUsd),
-            spanAttrInt("studio.latency_ms", latencyMs),
-          ],
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Unknown agent error";
-        const latencyMs = Date.now() - perfStart;
-
-        const metric: AgentExecutionMetrics = {
-          agent_name: agent.name,
-          artifact_type: agent.artifactType,
-          latency_ms: latencyMs,
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0,
-          cost_usd: 0,
-          status: "failed",
-          error_message: message,
-          prompt_text: context.channelBaselineText,
-        };
-        metrics.push(metric);
-
-        spanRecords.push({
-          spanId,
-          parentSpanId: rootSpanId,
-          name: `${agent.name}.generate`,
-          startTimeUnixNano: spanStart,
-          endTimeUnixNano: nowNano(),
-          statusCode: 2,
-          statusMessage: message,
-          attributes: [
-            spanAttrString("studio.agent_name", agent.name),
-            spanAttrString("studio.artifact_type", agent.artifactType),
-            spanAttrInt("studio.latency_ms", latencyMs),
-            spanAttrString("error.message", message),
-          ],
-        });
-
-        throw new Error(`${agent.name} failed: ${message}`);
+    let firstFailure: string | null = null;
+    for (const settled of agentResults) {
+      if (settled.status !== "fulfilled") {
+        firstFailure = settled.reason instanceof Error ? settled.reason.message : "Unknown agent failure";
+        continue;
       }
+      const item = settled.value;
+      metrics.push(item.metric);
+      spanRecords.push(item.span);
+      if (item.ok) {
+        artifactRows.push(item.artifactRow);
+        if (item.titleImagePrompt) titleImagePrompt = item.titleImagePrompt;
+      } else if (!firstFailure) {
+        firstFailure = `${item.agent.name} failed: ${item.message}`;
+      }
+    }
+
+    if (firstFailure) {
+      throw new Error(firstFailure);
     }
 
     if (isPro && titleImagePrompt) {
