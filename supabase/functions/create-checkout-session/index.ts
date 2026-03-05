@@ -87,21 +87,37 @@ Deno.serve(async (req) => {
 
     let customerId = profile?.stripe_customer_id || null;
 
-    if (!customerId) {
+    const createAndPersistCustomer = async () => {
       const customer = await stripe.customers.create({
         email: user.email,
         metadata: { user_id: user.id },
       });
 
-      customerId = customer.id;
-
+      const nextCustomerId = customer.id;
       const { error: updateCustomerError } = await adminClient
         .from("profiles")
-        .update({ stripe_customer_id: customerId })
+        .update({ stripe_customer_id: nextCustomerId })
         .eq("user_id", user.id);
 
       if (updateCustomerError) {
-        return jsonResponse(500, { error: updateCustomerError.message });
+        throw new Error(updateCustomerError.message);
+      }
+
+      return nextCustomerId;
+    };
+
+    if (!customerId) {
+      customerId = await createAndPersistCustomer();
+    } else {
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message.toLowerCase().includes("no such customer")) {
+          customerId = await createAndPersistCustomer();
+        } else {
+          throw error;
+        }
       }
     }
 
