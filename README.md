@@ -231,9 +231,10 @@ YOUTUBE_CLIENT_ID=your_youtube_oauth_client_id
 YOUTUBE_CLIENT_SECRET=your_youtube_oauth_client_secret
 YOUTUBE_REDIRECT_URI=http://localhost:3000/api/youtube/callback
 
-# Anyway
-ANYWAY_COLLECTOR_ENDPOINT=your_anyway_collector_url
-ANYWAY_API_KEY=your_anyway_api_key
+# Anyway (Supabase Edge Functions runtime env)
+ANYWAY_API_KEY=your_anyway_sdk_api_key
+ANYWAY_API_URL=https://trace-dev-collector.anyway.sh
+ANYWAY_TRACE_BASE_URL=https://webapp.anyway.sh
 
 # OpenClaw
 OPENCLAW_API_KEY=your_openclaw_api_key

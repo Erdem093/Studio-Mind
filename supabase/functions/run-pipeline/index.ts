@@ -213,6 +213,7 @@ async function exportTrace(traceId: string, spans: SpanRecord[], runId: string):
     new Set(
       [
         configuredCollector,
+        "https://trace-dev-collector.anyway.sh/v1/traces",
         "https://collector.anyway.sh/v1/traces",
         "https://api.anyway.sh/v1/traces",
       ].filter((item): item is string => Boolean(item)),
